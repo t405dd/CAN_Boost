@@ -367,11 +367,11 @@ export default {
 
 	// Статусный светодиод (WS2812 на устройстве)
 	'system.led': 'Статусный светодиод',
-	'system.ledHint': 'Экрана нет — состояние показывает встроенный RGB-светодиод.',
-	'system.ledBoot': 'Загрузка / прогрев (первые 30 с)',
-	'system.ledBoostOn': 'CAN-данные идут, boost включён и считает',
+	'system.ledHint': 'Экрана нет — встроенный RGB-светодиод показывает реальное состояние контроллера.',
+	'system.ledBoot': 'Загрузка / прогрев, пока нет CAN-данных',
+	'system.ledBoostOn': 'Boost включён и работает (есть MAP/RPM/TPS)',
 	'system.ledBoostOff': 'CAN-данные идут, boost выключен',
-	'system.ledNoData': 'Нет CAN-данных (двигатель/зажигание выключены)',
+	'system.ledNoData': 'Нет данных двигателя (зажигание off или нет MAP/RPM/TPS)',
 	'system.ledFault': 'Сбой шины (BUS-OFF) — выход переведён в safe',
 	'system.ledNoBus': 'CAN-шина не активна (нет трансивера / ошибка старта)',
 

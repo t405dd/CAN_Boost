@@ -367,11 +367,11 @@ export default {
 
 	// Status LED (on-device WS2812)
 	'system.led': 'Status LED',
-	'system.ledHint': 'No screen — the built-in RGB LED shows the device state.',
-	'system.ledBoot': 'Booting / warm-up (first 30 s)',
-	'system.ledBoostOn': 'CAN data flowing, boost enabled and computing',
+	'system.ledHint': 'No screen — the built-in RGB LED shows the real controller state.',
+	'system.ledBoot': 'Booting / warm-up, no CAN data yet',
+	'system.ledBoostOn': 'Boost enabled and working (MAP/RPM/TPS present)',
 	'system.ledBoostOff': 'CAN data flowing, boost disabled',
-	'system.ledNoData': 'No CAN data (engine / ignition off)',
+	'system.ledNoData': 'No engine data (ignition off or no MAP/RPM/TPS)',
 	'system.ledFault': 'Bus fault (BUS-OFF) — output forced to safe',
 	'system.ledNoBus': 'CAN bus inactive (no transceiver / start error)',
 
