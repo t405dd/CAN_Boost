@@ -260,6 +260,15 @@ export default {
 
 	// Header CAN-out strip
 	'hdr.canOut': 'CAN OUT',
+	'hdr.stOff': 'off',
+	'hdr.stNoMap': 'no MAP data',
+	'hdr.stNoRpm': 'no RPM data',
+	'hdr.stNoTps': 'no TPS data',
+	'hdr.stOverboost': 'overboost',
+	'hdr.stIdle': 'idle (spring)',
+	'hdr.stSpool': 'spool',
+	'hdr.stPid': 'PID',
+	'hdr.stCut': 'cut',
 
 	// Client-side data logger
 	'clog.title': 'Data Log',

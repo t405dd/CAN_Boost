@@ -260,6 +260,15 @@ export default {
 
 	// Полоса исходящих CAN-данных в шапке
 	'hdr.canOut': 'CAN OUT',
+	'hdr.stOff': 'выкл',
+	'hdr.stNoMap': 'нет данных MAP',
+	'hdr.stNoRpm': 'нет данных RPM',
+	'hdr.stNoTps': 'нет данных TPS',
+	'hdr.stOverboost': 'овербуст',
+	'hdr.stIdle': 'покой (пружина)',
+	'hdr.stSpool': 'спул',
+	'hdr.stPid': 'PID',
+	'hdr.stCut': 'срез',
 
 	// Клиентский логгер данных
 	'clog.title': 'Лог данных',
