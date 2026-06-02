@@ -211,43 +211,98 @@
 		};
 	}
 
-	// --- Load / Save ---
+	// --- Lazy load by section ---
+	// Settings load on connect (small, fast → верхние контролы/чекбоксы появляются
+	// сразу). Таблицы грузятся только при раскрытии секции — раньше всё (включая
+	// ~49 КБ Ki/Kp/Kd) качалось разом через сериализованную GATT-очередь и держало
+	// UI, пока не докачается последняя таблица.
+	let loaded = $state({ target: false, corr: false, learn: false, bias: false, delta: false });
+	let loadingSection = $state<string | null>(null);
+
+	async function loadSettings() {
+		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
+		if (s) settings = s;
+	}
+	async function loadTarget() {
+		const tgt = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_TARGET);
+		if (tgt) targetTable = tgt;
+		loaded.target = true;
+	}
+	async function loadCorr() {
+		const corrs = await readJsonConfig<BoostCorrectionTable[]>(SVC_BOOST, CHR_BOOST_CORR);
+		if (corrs && corrs.length >= 2) { corr1 = corrs[0]; corr2 = corrs[1]; }
+		loaded.corr = true;
+	}
+	async function loadLearn() {
+		const learn = await readJsonConfig<BoostPidTables>(SVC_BOOST, CHR_BOOST_LEARN);
+		if (learn) {
+			if (learn.ki) learnTables = learn;            // новый формат { ki, kp, kd }
+			else learnTables = {                          // legacy: одна таблица (I-term)
+				ki: learn as unknown as BoostTable,
+				kp: defaultLearnTable(2.0),
+				kd: defaultLearnTable(0.3)
+			};
+		}
+		loaded.learn = true;
+	}
+	async function loadBias() {
+		const bias = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS);
+		if (bias) biasTable = bias;
+		loaded.bias = true;
+	}
+	async function loadDelta() {
+		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
+		if (delta) deltaMapTable = delta;
+		loaded.delta = true;
+	}
+
+	// Загрузить данные секции, если ещё не загружены (по первому раскрытию).
+	async function ensureSectionData(id: string) {
+		const need =
+			(id === 'target' && !loaded.target) ? loadTarget :
+			((id === 'corr1' || id === 'corr2') && !loaded.corr) ? loadCorr :
+			(id === 'learnTable' && !loaded.learn) ? loadLearn :
+			(id === 'biasTable' && !loaded.bias) ? loadBias :
+			(id === 'deltaMap' && !loaded.delta) ? loadDelta : null;
+		if (!need) return;
+		loadingSection = id;
+		try {
+			await need();
+		} catch (e) {
+			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
+		} finally {
+			loadingSection = null;
+		}
+	}
+
+	// Кнопка «Загрузить с устройства»: освежает настройки + всё уже загруженное
+	// (то, что пользователь видел), плюс текущую открытую секцию. Несмотренные
+	// секции остаются ленивыми.
 	async function loadAll() {
 		loading = true;
 		statusMsg = '';
 		try {
-			const [s, tgt, corrs, learn, bias, delta] = await Promise.all([
-				readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS),
-				readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_TARGET),
-				readJsonConfig<BoostCorrectionTable[]>(SVC_BOOST, CHR_BOOST_CORR),
-				readJsonConfig<BoostPidTables>(SVC_BOOST, CHR_BOOST_LEARN),
-				readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS),
-				readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP)
-			]);
-			if (s) settings = s;
-			if (tgt) targetTable = tgt;
-			if (corrs && corrs.length >= 2) { corr1 = corrs[0]; corr2 = corrs[1]; }
-			if (learn) {
-				// New format: { ki, kp, kd }
-				if (learn.ki) {
-					learnTables = learn;
-				} else {
-					// Legacy format: single table (I-term)
-					learnTables = {
-						ki: learn as unknown as BoostTable,
-						kp: defaultLearnTable(2.0),
-						kd: defaultLearnTable(0.3)
-					};
-				}
-			}
-			if (bias) biasTable = bias;
-			if (delta) deltaMapTable = delta;
+			await loadSettings();
+			if (loaded.target) await loadTarget();
+			if (loaded.corr) await loadCorr();
+			if (loaded.learn) await loadLearn();
+			if (loaded.bias) await loadBias();
+			if (loaded.delta) await loadDelta();
+			if (activeSection) await ensureSectionData(activeSection);
 			showStatus(t('logging.loaded'));
 		} catch (e) {
 			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
 		} finally {
 			loading = false;
 		}
+	}
+
+	// После калибровки — освежить настройки и обученные таблицы (если уже открыты).
+	async function reloadAfterCalibration() {
+		await loadSettings();
+		if (loaded.learn) await loadLearn();
+		if (loaded.bias) await loadBias();
+		if (loaded.delta) await loadDelta();
 	}
 
 	async function saveSettings() {
@@ -345,7 +400,7 @@
 			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_SAVE);
 			calibrating = false;
 			calStatus = t('boost.calSaved');
-			await loadAll();  // перечитать обученные таблицы с устройства
+			await reloadAfterCalibration();  // перечитать обученные таблицы с устройства
 		} catch (e) {
 			calStatus = (e as Error).message;
 		}
@@ -357,7 +412,7 @@
 			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_DISCARD);
 			calibrating = false;
 			calStatus = t('boost.calDiscarded');
-			await loadAll();
+			await reloadAfterCalibration();
 		} catch (e) {
 			calStatus = (e as Error).message;
 		}
@@ -428,6 +483,7 @@
 
 	function toggleSection(id: string) {
 		activeSection = activeSection === id ? null : id;
+		if (activeSection === id && isConnected) ensureSectionData(id);
 	}
 
 	// --- CAN ID formatting ---
@@ -446,8 +502,11 @@
 
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
-			loadAll();
+			// Только настройки сразу (быстро) — таблицы лениво по раскрытию секций.
+			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
+			loadSettings();
 			loadSignalLabels(); // Load CAN Receive config for human-readable names
+			if (activeSection) ensureSectionData(activeSection);
 			initialLoadDone = true;
 		}
 		if (!isConnected) {
@@ -468,6 +527,12 @@
 				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors disabled:opacity-40">
 				{loading ? t('common.loading') : t('common.loadFromDevice')}
 			</button>
+			{#if loadingSection}
+				<span class="text-xs text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
+					<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+					{t('common.loading')}
+				</span>
+			{/if}
 			{#if statusMsg}
 				<span class="text-xs text-[var(--color-dash-text-dim)] ml-auto">{statusMsg}</span>
 			{/if}
