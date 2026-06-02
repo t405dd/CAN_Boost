@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
   <rect width="192" height="192" rx="24" fill="#0a0a0a"/>
   <rect x="8" y="8" width="176" height="176" rx="20" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.3"/>
-  <text x="96" y="80" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="36" fill="#00d4ff">MS3</text>
-  <text x="96" y="125" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="28" fill="#ffffff" opacity="0.7">DASH</text>
+  <text x="96" y="84" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="40" fill="#00d4ff">MS3</text>
+  <text x="96" y="128" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="26" fill="#ffffff" opacity="0.7">CAN BC</text>
 </svg>

@@ -52,7 +52,7 @@ export const USER_PARAM_BLE_OFFSET = 200;
 
 // BLE device name prefix for filtering (suffix is last 4 hex of MAC).
 // Must match BLE_DEVICE_NAME_PREFIX in firmware/can_boost/constants.h
-export const BLE_DEVICE_NAME_PREFIX = 'CAN_BOOST';
+export const BLE_DEVICE_NAME_PREFIX = 'CAN_BC';
 
 // System command bytes (CHR_COMMAND). Calibration commands (0x20-0x23) are
 // CAN_Boost-specific (headless boost calibration over BLE).
