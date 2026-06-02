@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+	/* Automotive dark dashboard palette */
+	--color-dash-bg: #0a0a0a;
+	--color-dash-card: #1a1a2e;
+	--color-dash-card-hover: #222240;
+	--color-dash-border: #2a2a4e;
+	--color-dash-accent: #00d4ff;
+	--color-dash-accent-dim: #0099bb;
+	--color-dash-warn: #ff6b35;
+	--color-dash-danger: #ff0040;
+	--color-dash-success: #00ff88;
+	--color-dash-muted: #6b7280;
+	--color-dash-text: #e5e7eb;
+	--color-dash-text-dim: #9ca3af;
+
+	/* Font */
+	--font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* Base styles */
+html {
+	font-size: 18px; /* scale up all rem-based sizes (~12% larger) */
+}
+
+body {
+	font-family: var(--font-mono);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	overflow-x: hidden;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+	width: 6px;
+}
+::-webkit-scrollbar-track {
+	background: var(--color-dash-bg);
+}
+::-webkit-scrollbar-thumb {
+	background: var(--color-dash-border);
+	border-radius: 3px;
+}
+
+/* No-select for touch interfaces */
+.no-select {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+/* BLE connection progress bar animation */
+@keyframes progress-bar {
+	0% { transform: translateX(-100%); width: 40%; }
+	50% { transform: translateX(80%); width: 40%; }
+	100% { transform: translateX(250%); width: 40%; }
+}
+.animate-progress-bar {
+	animation: progress-bar 1.5s ease-in-out infinite;
+}
