@@ -6,11 +6,14 @@
 	interface Props {
 		open: boolean;
 		existingIds: string[];           // internalId сигналов, уже добавленных в конфиг
+		liveCanIds?: number[];           // CAN ID, реально приходящие сейчас по шине
 		onadd: (signals: PredefinedSignal[]) => void;
 		onclose: () => void;
 	}
 
-	let { open, existingIds, onadd, onclose }: Props = $props();
+	let { open, existingIds, liveCanIds = [], onadd, onclose }: Props = $props();
+
+	let liveSet = $derived(new Set(liveCanIds));
 
 	let catalog = $state<PredefinedSignal[]>([]);
 	let loadErr = $state('');
@@ -101,9 +104,11 @@
 		<div class="text-center py-6 text-[var(--color-dash-danger)] text-xs">{loadErr}</div>
 	{:else}
 		{#each groups as group (group.name)}
+			{@const groupLive = group.sigs.some((s) => liveSet.has(s.defaultCanId))}
 			<div>
 				<div class="flex items-center justify-between mb-1.5">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase tracking-wider">
+					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase tracking-wider inline-flex items-center gap-1.5">
+						{#if groupLive}<span class="w-1.5 h-1.5 rounded-full bg-[var(--color-dash-success)]" title={t('canRx.catalogOnBus')}></span>{/if}
 						{group.name} <span class="opacity-60">· {group.sigs.length}</span>
 					</span>
 					<button onclick={() => addWholeGroup(group.sigs)}
@@ -129,6 +134,9 @@
 							</div>
 							<div class="flex-1 min-w-0">
 								<div class="flex items-center gap-1.5">
+									{#if liveSet.has(s.defaultCanId)}
+										<span class="w-1.5 h-1.5 rounded-full bg-[var(--color-dash-success)] shrink-0" title={t('canRx.catalogOnBus')}></span>
+									{/if}
 									<span class="text-xs font-bold text-[var(--color-dash-text)] truncate">{s.friendlyName}</span>
 									{#if s.unit}<span class="text-[10px] text-[var(--color-dash-text-dim)]">{s.unit}</span>{/if}
 									{#if dup}<span class="text-[9px] text-[var(--color-dash-success)] uppercase">{t('canRx.catalogDup')}</span>{/if}

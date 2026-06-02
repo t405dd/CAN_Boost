@@ -150,6 +150,7 @@ export default {
 	'canRx.catalogAddedN': 'Добавлено {0}',
 	'canRx.catalogAdded': 'Добавлено {0}, пропущено {1}',
 	'canRx.catalogDup': 'есть',
+	'canRx.catalogOnBus': 'на шине',
 	'canRx.catalogEmpty': 'Ничего не найдено',
 	'canRx.catalogLoading': 'Загрузка каталога…',
 	'canRx.catalogHint': 'Размещение по CAN ID',

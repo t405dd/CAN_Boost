@@ -26,6 +26,7 @@ export const CHR_CAN_OUT_SETTINGS = '4d533334-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_DEVICE_INFO = '4d533371-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_COMMAND = '4d533372-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CURRENT_TIME = '4d533373-b5a3-f393-e0a9-e50e24dcca9e';
+export const CHR_CAN_BUS_SCAN = '4d533374-b5a3-f393-e0a9-e50e24dcca9e';  // read: JSON живых CAN ID
 
 // Boost Controller Service characteristics
 export const CHR_BOOST_SETTINGS = '4d533381-b5a3-f393-e0a9-e50e24dcca9e';

@@ -150,6 +150,7 @@ export default {
 	'canRx.catalogAddedN': 'Added {0}',
 	'canRx.catalogAdded': 'Added {0}, skipped {1}',
 	'canRx.catalogDup': 'added',
+	'canRx.catalogOnBus': 'on bus',
 	'canRx.catalogEmpty': 'Nothing found',
 	'canRx.catalogLoading': 'Loading catalog…',
 	'canRx.catalogHint': 'Placed by CAN ID',

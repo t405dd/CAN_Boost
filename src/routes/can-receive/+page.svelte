@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_CAN_CONFIG, CHR_CAN_RECEIVE } from '$lib/ble/uuids';
+	import { SVC_CAN_CONFIG, CHR_CAN_RECEIVE, SVC_SYSTEM, CHR_CAN_BUS_SCAN } from '$lib/ble/uuids';
 	import { type CanMessageConfig, type CanSignalConfig, type CanSignalDataType, CAN_DATA_TYPE_NAMES } from '$lib/types/config';
 	import { setCacheLabelsFromConfig } from '$lib/stores/live-data.svelte';
 	import { loadSignalLabels } from '$lib/stores/signal-labels.svelte';
@@ -35,6 +35,23 @@
 	let catalogOpen = $state(false);
 	// internalId всех уже добавленных сигналов — для пометки дубликатов в каталоге.
 	let existingSignalIds = $derived(messages.flatMap((m) => m.signals.map((s) => s.signalName)));
+
+	// CAN ID, реально приходящие сейчас по шине (для индикатора «есть на шине» в каталоге).
+	let liveCanIds = $state<number[]>([]);
+	async function refreshBusScan() {
+		if (!isConnected) return;
+		try {
+			const ids = await readJsonConfig<number[]>(SVC_SYSTEM, CHR_CAN_BUS_SCAN);
+			if (Array.isArray(ids)) liveCanIds = ids;
+		} catch { /* нет данных/старая прошивка — индикатор просто не покажется */ }
+	}
+	// Пока открыта модалка каталога — периодически обновляем скан шины.
+	$effect(() => {
+		if (!catalogOpen || !isConnected) return;
+		refreshBusScan();
+		const id = setInterval(refreshBusScan, 1500);
+		return () => clearInterval(id);
+	});
 
 	function showStatus(msg: string, durationMs = 3000) {
 		statusMsg = msg;
@@ -510,6 +527,7 @@
 <SignalCatalogModal
 	open={catalogOpen}
 	existingIds={existingSignalIds}
+	{liveCanIds}
 	onadd={addFromCatalog}
 	onclose={() => catalogOpen = false}
 />
