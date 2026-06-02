@@ -8,14 +8,17 @@
 // при установке. После первой загрузки приложение полностью работает без интернета.
 // SvelteKit автоматически регистрирует этот файл в продакшен-сборке.
 
-import { build, files, version, prerendered } from '$service-worker';
+import { base, build, files, version, prerendered } from '$service-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 const CACHE = `can-boost-${version}`;
 
+// Оболочка SPA: корень приложения с учётом base-path (на GitHub Pages — /<repo>/).
+const SHELL = `${base}/`;
+
 // Всё, что precache при установке: код приложения + статика + предрендеренные страницы + оболочка SPA.
-const PRECACHE = [...build, ...files, ...prerendered, '/'];
+const PRECACHE = [...build, ...files, ...prerendered, SHELL];
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -64,7 +67,7 @@ sw.addEventListener('fetch', (event) => {
 				if (hit) return hit;
 				// Навигация (SPA) офлайн → отдаём кэшированную оболочку
 				if (req.mode === 'navigate') {
-					const shell = (await cache.match('/')) ?? (await cache.match('/index.html'));
+					const shell = (await cache.match(SHELL)) ?? (await cache.match(`${base}/index.html`));
 					if (shell) return shell;
 				}
 				throw new Error('offline: ресурс не закэширован');

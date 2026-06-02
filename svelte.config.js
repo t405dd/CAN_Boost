@@ -11,7 +11,12 @@ const config = {
 			fallback: 'index.html',
 			precompress: false,
 			strict: true
-		})
+		}),
+		// На GitHub Pages (project-сайт) приложение живёт в подкаталоге /<repo>/.
+		// BASE_PATH задаётся в CI; локально/при пустом значении — корень.
+		paths: {
+			base: process.env.BASE_PATH ?? ''
+		}
 	}
 };
 

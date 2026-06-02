@@ -2,6 +2,7 @@
 // A library of known signals with full decode parameters, used to add received
 // signals by picking from a list instead of typing every field by hand.
 
+import { base } from '$app/paths';
 import type { CanSignalDataType } from '$lib/types/config';
 
 export interface PredefinedSignal {
@@ -30,7 +31,7 @@ let _cache: PredefinedSignal[] | null = null;
 /** Load the predefined signal catalog (cached after first fetch). */
 export async function loadSignalCatalog(): Promise<PredefinedSignal[]> {
 	if (_cache) return _cache;
-	const res = await fetch('/predefined_signals.json');
+	const res = await fetch(`${base}/predefined_signals.json`);
 	if (!res.ok) throw new Error(`HTTP ${res.status}`);
 	_cache = (await res.json()) as PredefinedSignal[];
 	return _cache;
