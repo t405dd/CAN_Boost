@@ -28,6 +28,7 @@
 		{ href: '/can-receive', key: 'nav.canReceive' as const, icon: 'R' },
 		{ href: '/can-transmit', key: 'nav.canTransmit' as const, icon: 'T' },
 		{ href: '/boost', key: 'nav.boost' as const, icon: 'B' },
+		{ href: '/logging', key: 'nav.logging' as const, icon: 'L' },
 		{ href: '/system', key: 'nav.system' as const, icon: 'G' }
 	];
 
