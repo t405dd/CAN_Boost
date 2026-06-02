@@ -5,6 +5,7 @@
 	import { loadSignalLabels } from '$lib/stores/signal-labels.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
+	import { base } from '$app/paths';
 
 	interface Props { children: import('svelte').Snippet }
 	let { children }: Props = $props();
@@ -140,7 +141,7 @@
 					<h2 class="text-sm font-bold text-[var(--color-dash-accent)] tracking-wider">{t('nav.title')}</h2>
 				</div>
 				{#each navItems as item}
-					<a href={item.href}
+					<a href="{base}{item.href}"
 						class="flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-dash-text)] hover:bg-[var(--color-dash-card-hover)] hover:text-[var(--color-dash-accent)] transition-colors border-b border-[var(--color-dash-border)]/30"
 						onclick={() => menuOpen = false}>
 						<span class="w-6 h-6 flex items-center justify-center rounded bg-[var(--color-dash-border)] text-[var(--color-dash-accent)] text-xs font-bold">{item.icon}</span>

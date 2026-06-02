@@ -13,6 +13,11 @@ permissions:
   pages: write
   id-token: write
 
+# JS-экшены (checkout/setup-node/*-pages) ещё на Node20 — opt-in на Node24,
+# чтобы убрать deprecation-предупреждения в логах.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: pages
   cancel-in-progress: false
