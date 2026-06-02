@@ -22,6 +22,11 @@ let connection: BleConnection = {
 let stateCallback: ((state: ConnectionState) => void) | null = null;
 let statusMsgCallback: ((step: string, detail?: string) => void) | null = null;
 let liveDataCallback: ((data: DataView) => void) | null = null;
+// Пауза live-данных делается ФЛАГОМ, а не stop/startNotifications: повторный
+// startNotifications() после stop на Android BLE часто не возвращает нотификации
+// (live-данные «умирают» после chunked-чтения конфига). Подписку не трогаем —
+// на время передачи просто игнорируем входящие пакеты.
+let liveDataPaused = false;
 let pinProvider: (() => string) | null = null; // Поставщик PIN для авторизации
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
@@ -257,10 +262,12 @@ async function subscribeLiveData() {
 	if (!service) return;
 
 	try {
+		liveDataPaused = false;   // на случай, если прошлая передача оборвалась с паузой
 		const char = await service.getCharacteristic(CHR_ENGINE_DATA);
 		connection.characteristics.set(CHR_ENGINE_DATA, char);
 
 		char.addEventListener('characteristicvaluechanged', (event: Event) => {
+			if (liveDataPaused) return;   // во время chunked-передачи игнорируем пакеты
 			const target = event.target as BluetoothRemoteGATTCharacteristic;
 			if (target.value) {
 				liveDataCallback?.(target.value);
@@ -439,28 +446,15 @@ export function isConnected(): boolean {
 	return connection.device?.gatt?.connected ?? false;
 }
 
-/** Pause live data notifications (call before chunked transfer) */
+/** Pause live data processing (call before chunked transfer).
+ *  Флаг, без stopNotifications — см. комментарий у liveDataPaused. */
 export async function pauseLiveData(): Promise<void> {
-	const char = connection.characteristics.get(CHR_ENGINE_DATA);
-	if (!char) return;
-	try {
-		await char.stopNotifications();
-		console.log('[BLE] Live data paused');
-	} catch (err) {
-		console.warn('[BLE] Failed to pause live data:', err);
-	}
+	liveDataPaused = true;
 }
 
-/** Resume live data notifications (call after chunked transfer) */
+/** Resume live data processing (call after chunked transfer). */
 export async function resumeLiveData(): Promise<void> {
-	const char = connection.characteristics.get(CHR_ENGINE_DATA);
-	if (!char) return;
-	try {
-		await char.startNotifications();
-		console.log('[BLE] Live data resumed');
-	} catch (err) {
-		console.warn('[BLE] Failed to resume live data:', err);
-	}
+	liveDataPaused = false;
 }
 
 /** Subscribe to notifications on a characteristic */
