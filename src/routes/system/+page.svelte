@@ -117,6 +117,16 @@
 		setTimeout(() => factoryResetStatus = '', 3000);
 	}
 
+	// --- Status LED legend (matches firmware can_bus_manager.cpp) ---
+	const ledLegend = [
+		{ color: '#2563ff', key: 'system.ledBoot' as const },
+		{ color: '#16d24a', key: 'system.ledBoostOn' as const },
+		{ color: '#e8e8e8', key: 'system.ledBoostOff' as const },
+		{ color: '#ffd21a', key: 'system.ledNoData' as const },
+		{ color: '#ff2b2b', key: 'system.ledFault' as const },
+		{ color: '#ff2ea6', key: 'system.ledNoBus' as const },
+	];
+
 	// --- Time Sync ---
 	let timeSyncStatus = $state('');
 	async function syncTime() {
@@ -269,6 +279,21 @@
 				{:else if timeSyncStatus === 'error'}<span class="text-[var(--color-dash-danger)]">{t('system.syncFailed')}</span>
 				{:else}{t('system.syncNow')}{/if}
 			</button>
+		</div>
+
+		<!-- Status LED legend -->
+		<div class="p-3 rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<span class="text-xs text-[var(--color-dash-text-dim)] uppercase tracking-wider block mb-2">{t('system.led')}</span>
+			<p class="text-[10px] text-[var(--color-dash-text-dim)] mb-3">{t('system.ledHint')}</p>
+			<div class="space-y-2">
+				{#each ledLegend as item}
+					<div class="flex items-center gap-2.5">
+						<span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/30"
+							style="background-color: {item.color}; box-shadow: 0 0 6px {item.color};"></span>
+						<span class="text-xs text-[var(--color-dash-text)]">{t(item.key)}</span>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{/if}
 </div>

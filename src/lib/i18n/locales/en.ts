@@ -365,6 +365,16 @@ export default {
 	'system.blePinChanged': 'PIN changed on device',
 	'system.blePinChangeFailed': 'Change failed',
 
+	// Status LED (on-device WS2812)
+	'system.led': 'Status LED',
+	'system.ledHint': 'No screen — the built-in RGB LED shows the device state.',
+	'system.ledBoot': 'Booting / warm-up (first 30 s)',
+	'system.ledBoostOn': 'CAN data flowing, boost enabled and computing',
+	'system.ledBoostOff': 'CAN data flowing, boost disabled',
+	'system.ledNoData': 'No CAN data (engine / ignition off)',
+	'system.ledFault': 'Bus fault (BUS-OFF) — output forced to safe',
+	'system.ledNoBus': 'CAN bus inactive (no transceiver / start error)',
+
 	// PIN rejection dialog
 	'pin.wrongTitle': 'Wrong PIN',
 	'pin.wrongHint': 'Device rejected the PIN. Enter the correct PIN and tap Connect.',

@@ -365,6 +365,16 @@ export default {
 	'system.blePinChanged': 'PIN изменён на устройстве',
 	'system.blePinChangeFailed': 'Ошибка изменения',
 
+	// Статусный светодиод (WS2812 на устройстве)
+	'system.led': 'Статусный светодиод',
+	'system.ledHint': 'Экрана нет — состояние показывает встроенный RGB-светодиод.',
+	'system.ledBoot': 'Загрузка / прогрев (первые 30 с)',
+	'system.ledBoostOn': 'CAN-данные идут, boost включён и считает',
+	'system.ledBoostOff': 'CAN-данные идут, boost выключен',
+	'system.ledNoData': 'Нет CAN-данных (двигатель/зажигание выключены)',
+	'system.ledFault': 'Сбой шины (BUS-OFF) — выход переведён в safe',
+	'system.ledNoBus': 'CAN-шина не активна (нет трансивера / ошибка старта)',
+
 	// Диалог отклонения PIN
 	'pin.wrongTitle': 'Неверный PIN',
 	'pin.wrongHint': 'Устройство отклонило PIN. Введите правильный PIN и нажмите Подключить.',
