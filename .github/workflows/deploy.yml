@@ -13,11 +13,6 @@ permissions:
   pages: write
   id-token: write
 
-# JS-экшены (checkout/setup-node/*-pages) ещё на Node20 — opt-in на Node24,
-# чтобы убрать deprecation-предупреждения в логах.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -26,8 +21,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -41,7 +36,7 @@ jobs:
         run: |
           cp build/index.html build/404.html   # GitHub отдаёт 404.html на неизвестные пути → грузит SPA
           touch build/.nojekyll                 # иначе Jekyll прячет _app/ (имена с подчёркиванием)
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build
 
@@ -53,4 +48,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
