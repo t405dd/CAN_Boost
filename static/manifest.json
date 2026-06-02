@@ -1,6 +1,6 @@
 {
-	"name": "CAN Boost Controller",
-	"short_name": "CAN Boost",
+	"name": "MS3 CAN BC",
+	"short_name": "MS3 CAN BC",
 	"description": "Standalone CAN boost controller configuration via Bluetooth",
 	"id": ".",
 	"start_url": ".",

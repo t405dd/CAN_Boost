@@ -76,7 +76,7 @@
 			</svg>
 		</button>
 
-		<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">CAN BOOST</span>
+		<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">MS3 CAN BC</span>
 
 		<div class="flex items-center gap-2">
 			{#if showInstall}

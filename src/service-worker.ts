@@ -3,7 +3,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-// Service worker для офлайн-работы CAN Boost PWA.
+// Service worker для офлайн-работы MS3 CAN BC PWA.
 // Предкэширует всё приложение (JS/CSS) + статику (manifest, иконки, predefined_signals.json)
 // при установке. После первой загрузки приложение полностью работает без интернета.
 // SvelteKit автоматически регистрирует этот файл в продакшен-сборке.
