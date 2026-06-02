@@ -258,6 +258,9 @@ export default {
 	'logging.writeFailed': 'Write failed',
 	'logging.errorSaving': 'Error saving',
 
+	// Header CAN-out strip
+	'hdr.canOut': 'CAN OUT',
+
 	// Client-side data logger
 	'clog.title': 'Data Log',
 	'clog.hint': 'Records live data locally on this device. The log survives BLE disconnects and page reloads. Share or download it when done.',

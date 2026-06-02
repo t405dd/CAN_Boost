@@ -4,6 +4,7 @@
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
 	import { loadSignalLabels } from '$lib/stores/signal-labels.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
+	import CanOutBar from '$lib/components/CanOutBar.svelte';
 
 	interface Props { children: import('svelte').Snippet }
 	let { children }: Props = $props();
@@ -120,6 +121,11 @@
 				{stepText()}
 			</div>
 		</div>
+	{/if}
+
+	<!-- CAN OUT strip: what the device transmits (boost output + CO1) -->
+	{#if bleState.status === 'connected'}
+		<CanOutBar />
 	{/if}
 
 	<!-- Navigation drawer -->
