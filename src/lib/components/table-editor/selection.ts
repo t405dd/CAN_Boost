@@ -137,14 +137,26 @@ export function findCursorCell(
 	};
 }
 
-/** Find fractional index in axis values array. Handles non-uniform spacing. */
+/** Find fractional index in axis values array. Handles non-uniform spacing.
+ *  Below/above the axis range the index is *extrapolated* (returns < 0 or
+ *  > numPoints-1) using the nearest interval's slope — e.g. a stopped engine
+ *  (RPM 0) with a first node of 500 yields a negative index. Callers clamp the
+ *  on-screen crosshair to the table edge so the line never pokes out. */
 function findFractionalIndex(axisValues: number[], numPoints: number, value: number): number {
 	if (numPoints <= 1) return 0;
 
-	// Below range
-	if (value <= axisValues[0]) return 0;
-	// Above range
-	if (value >= axisValues[numPoints - 1]) return numPoints - 1;
+	// Below range — extrapolate down the first interval
+	if (value <= axisValues[0]) {
+		const span = axisValues[1] - axisValues[0];
+		if (Math.abs(span) < 1e-9) return 0;
+		return (value - axisValues[0]) / span;
+	}
+	// Above range — extrapolate up the last interval
+	if (value >= axisValues[numPoints - 1]) {
+		const span = axisValues[numPoints - 1] - axisValues[numPoints - 2];
+		if (Math.abs(span) < 1e-9) return numPoints - 1;
+		return (numPoints - 1) + (value - axisValues[numPoints - 1]) / span;
+	}
 
 	// Find bracketing interval
 	for (let i = 0; i < numPoints - 1; i++) {

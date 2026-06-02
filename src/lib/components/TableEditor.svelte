@@ -66,6 +66,9 @@
 	}
 
 	// --- Constants ---
+	// CELL_W/CELL_H are literal px and MUST match the cells' `w-[60px] h-[28px]`.
+	// Don't size cells with rem-based Tailwind classes (e.g. h-7) — root font-size
+	// is 18px (app.css), so h-7 = 31.5px ≠ 28 and the live crosshair drifts down.
 	const CELL_W = 60;
 	const CELL_H = 28;
 
@@ -121,8 +124,10 @@
 		const c1 = Math.min(c0 + 1, numCols - 1);
 		const r0 = Math.max(0, Math.min(Math.floor(fracRow), numRows - 1));
 		const r1 = Math.min(r0 + 1, numRows - 1);
-		const fx = c0 === c1 ? 0 : fracCol - c0;
-		const fy = r0 === r1 ? 0 : fracRow - r0;
+		// Clamp fractions to [0,1]: when the cursor is extrapolated off the axis
+		// range we show the edge cell's value rather than an extrapolated target.
+		const fx = c0 === c1 ? 0 : Math.max(0, Math.min(1, fracCol - c0));
+		const fy = r0 === r1 ? 0 : Math.max(0, Math.min(1, fracRow - r0));
 
 		if (numRows <= 1) {
 			return data[0][c0] * (1 - fx) + data[0][c1] * fx;
@@ -147,14 +152,19 @@
 		const { fracCol, fracRow } = cursorInfo;
 		const displayFracRow = is2D ? (numRows - 1 - fracRow) : fracRow;
 		const yAxisOffset = is2D ? CELL_W : 0;
+		const dataW = numCols * CELL_W;
+		const dataH = numRows * CELL_H;
 		// Axis nodes are centered in their cells (center at (index + 0.5)·CELL),
 		// so the crosshair must add the half-cell offset to land on the node, not
 		// the cell's left/top edge.
+		// fracCol/fracRow may be extrapolated outside [0, n-1] when the live value
+		// is off the axis range (e.g. RPM 0 below a 500 first node). Clamp the line
+		// to the data region so it rests on the edge instead of poking past it.
 		return {
-			x: yAxisOffset + (fracCol + 0.5) * CELL_W,
-			y: (displayFracRow + 0.5) * CELL_H,   // данные начинаются сверху (шапки X больше нет)
-			tableWidth: yAxisOffset + numCols * CELL_W,
-			tableHeight: numRows * CELL_H
+			x: Math.max(yAxisOffset, Math.min(yAxisOffset + dataW, yAxisOffset + (fracCol + 0.5) * CELL_W)),
+			y: Math.max(0, Math.min(dataH, (displayFracRow + 0.5) * CELL_H)),   // данные начинаются сверху (шапки X больше нет)
+			tableWidth: yAxisOffset + dataW,
+			tableHeight: dataH
 		};
 	});
 
@@ -572,13 +582,13 @@
 										bind:value={editValue}
 										onblur={commitEdit}
 										onkeydown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
-										class="w-[60px] h-7 px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
+										class="w-[60px] h-[28px] px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
 										use:focusOnMount />
 								{:else}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
+										class="w-[60px] h-[28px] flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
 											{ySelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 										onmousedown={(e) => onCellMouseDown(dataRow, -1, e)}
 										onmouseenter={() => onCellMouseEnter(dataRow, -1)}>
@@ -600,11 +610,11 @@
 										type="text"
 										bind:value={editValue}
 										onblur={commitEdit}
-										class="w-[60px] h-7 px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
+										class="w-[60px] h-[28px] px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
 										use:focusOnMount />
 								{:else}
 									<div
-										class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75
+										class="w-[60px] h-[28px] flex items-center justify-center text-[10px] font-mono border transition-colors duration-75
 											{selected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/20' : 'border-[var(--color-dash-border)]/30'}
 											{isCursor ? 'ring-2 ring-[var(--color-dash-warn)] ring-inset' : ''}
 											{isBracketing && !selected ? 'ring-1 ring-[var(--color-dash-warn)]/50 ring-inset' : ''}"
@@ -624,7 +634,7 @@
 				<tr>
 					{#if is2D}
 						<td class="p-0">
-							<div class="w-[60px] h-7 flex items-center justify-center text-[9px] text-[var(--color-dash-text-dim)] bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]/30 truncate px-0.5">
+							<div class="w-[60px] h-[28px] flex items-center justify-center text-[9px] text-[var(--color-dash-text-dim)] bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]/30 truncate px-0.5">
 								{yAxisLabel ?? 'Y'} \ {xAxisLabel ?? 'X'}
 							</div>
 						</td>
@@ -639,13 +649,13 @@
 									bind:value={editValue}
 									onblur={commitEdit}
 									onkeydown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
-									class="w-[60px] h-7 px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
+									class="w-[60px] h-[28px] px-1 text-[10px] text-center bg-white border-2 border-[var(--color-dash-accent)] text-black font-mono focus:outline-none"
 									use:focusOnMount />
 							{:else}
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
+									class="w-[60px] h-[28px] flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
 										{xSelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 									onmousedown={(e) => onCellMouseDown(-1, c, e)}
 									onmouseenter={() => onCellMouseEnter(-1, c)}>

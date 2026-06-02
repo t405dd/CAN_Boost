@@ -205,13 +205,15 @@ export function findBracketingCells(
 	numCols: number,
 	numRows: number
 ): { cells: CellCoord[]; weights: number[] } {
-	const c0 = Math.floor(fracCol);
+	// fracCol/fracRow may be extrapolated outside [0, n-1] (cursor off the axis
+	// range); clamp to valid cells and weights so Live Edit nudges the edge cell.
+	const c0 = Math.max(0, Math.min(Math.floor(fracCol), numCols - 1));
 	const c1 = Math.min(c0 + 1, numCols - 1);
-	const r0 = Math.floor(fracRow);
+	const r0 = Math.max(0, Math.min(Math.floor(fracRow), numRows - 1));
 	const r1 = Math.min(r0 + 1, numRows - 1);
 
-	const fx = fracCol - c0;
-	const fy = fracRow - r0;
+	const fx = Math.max(0, Math.min(1, fracCol - c0));
+	const fy = Math.max(0, Math.min(1, fracRow - r0));
 
 	if (numRows <= 1) {
 		// 1D: only two cells
