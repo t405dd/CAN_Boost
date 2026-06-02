@@ -1,4 +1,4 @@
-// Web Bluetooth connection manager for MS3 Dash.
+// Web Bluetooth connection manager for MS3 CAN BC.
 // Handles connect, disconnect, auto-reconnect, service/characteristic caching.
 
 import { ALL_SERVICE_UUIDS, BLE_DEVICE_NAME_PREFIX, SVC_LIVE_DATA, SVC_SYSTEM, CHR_ENGINE_DATA, CHR_CURRENT_TIME, CHR_COMMAND } from './uuids';

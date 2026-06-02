@@ -18,7 +18,7 @@ export default {
 	'ble.disconnected': 'OFF',
 	'ble.notSupported': 'Web Bluetooth not supported',
 	'ble.notSupportedHint': 'Use Chrome or Edge on Android, Windows, macOS, or ChromeOS.',
-	'ble.connectPrompt': 'Connect to MS3 Dash via Bluetooth',
+	'ble.connectPrompt': 'Connect to MS3 CAN BC via Bluetooth',
 	'ble.connect': 'Connect',
 	'ble.connectingBtn': 'Connecting...',
 	'ble.reconnectingBtn': 'Reconnecting...',
@@ -398,7 +398,7 @@ export default {
 	'flash.description': 'Flash firmware directly via USB cable using Web Serial. No BLE connection needed.',
 	'flash.notSupported': 'Web Serial is not supported in this browser. Use Chrome or Edge on desktop.',
 	'flash.connectUsb': 'Connect the device via USB cable, then click the button below.',
-	'flash.flashButton': 'Flash MS3 Dash',
+	'flash.flashButton': 'Flash MS3 CAN BC',
 	'flash.hint': 'Place firmware files (bootloader.bin, partitions.bin, firmware.bin, littlefs.bin) in the firmware/ folder.',
 
 	// Boost Controller page
