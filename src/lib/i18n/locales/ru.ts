@@ -432,6 +432,8 @@ export default {
 	'table.interpV': 'Интерп В',
 	'table.apply': 'Применить',
 	'table.selectAll': 'Выбрать все',
+	'table.rows': 'Строки',
+	'table.cols': 'Столбцы',
 
 	// Редактор сетки
 	'grid.pickParam': 'Выбор параметра',

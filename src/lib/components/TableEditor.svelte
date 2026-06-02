@@ -20,8 +20,14 @@
 		colorGradient?: boolean;
 		gradientMin?: number;
 		gradientMax?: number;
+		resizable?: boolean;
+		minRows?: number;
+		maxRows?: number;
+		minCols?: number;
+		maxCols?: number;
 		onDataChange?: (data: number[][]) => void;
 		onAxisChange?: (axis: 'x' | 'y', values: number[]) => void;
+		onResize?: (rows: number, cols: number) => void;
 	}
 
 	let {
@@ -39,9 +45,25 @@
 		colorGradient = false,
 		gradientMin = 0,
 		gradientMax = 200,
+		resizable = false,
+		minRows = 1,
+		maxRows = 16,
+		minCols = 2,
+		maxCols = 16,
 		onDataChange,
-		onAxisChange
+		onAxisChange,
+		onResize
 	}: Props = $props();
+
+	// --- Dimension controls (resizable tables only) ---
+	function changeRows(delta: number) {
+		const r = Math.max(minRows, Math.min(maxRows, numRows + delta));
+		if (r !== numRows) onResize?.(r, numCols);
+	}
+	function changeCols(delta: number) {
+		const c = Math.max(minCols, Math.min(maxCols, numCols + delta));
+		if (c !== numCols) onResize?.(numRows, c);
+	}
 
 	// --- Constants ---
 	const CELL_W = 60;
@@ -72,6 +94,11 @@
 	// --- Computed ---
 	let is2D = $derived(yAxisValues !== undefined && numRows > 1);
 	let hasSelection = $derived(selection.length > 0);
+	// Total table width. Combined with `table-layout: fixed` this forces every
+	// column to exactly CELL_W, regardless of axis-label text length — otherwise
+	// auto-layout sizes columns to their content and the crosshair (which assumes
+	// a uniform CELL_W pitch) drifts.
+	let tableWidthPx = $derived((numCols + (is2D ? 1 : 0)) * CELL_W);
 
 	// Inverted display order for 2D tables (highest Y at top, like TunerStudio)
 	let displayRowIndices = $derived(
@@ -120,9 +147,12 @@
 		const { fracCol, fracRow } = cursorInfo;
 		const displayFracRow = is2D ? (numRows - 1 - fracRow) : fracRow;
 		const yAxisOffset = is2D ? CELL_W : 0;
+		// Axis nodes are centered in their cells (center at (index + 0.5)·CELL),
+		// so the crosshair must add the half-cell offset to land on the node, not
+		// the cell's left/top edge.
 		return {
-			x: yAxisOffset + fracCol * CELL_W,
-			y: displayFracRow * CELL_H,   // данные начинаются сверху (шапки X больше нет)
+			x: yAxisOffset + (fracCol + 0.5) * CELL_W,
+			y: (displayFracRow + 0.5) * CELL_H,   // данные начинаются сверху (шапки X больше нет)
 			tableWidth: yAxisOffset + numCols * CELL_W,
 			tableHeight: numRows * CELL_H
 		};
@@ -400,6 +430,13 @@
 		return v.toFixed(decimals);
 	}
 
+	// Axis-label display: round to 1 decimal, drop trailing ".0" (e.g. 9.091 → 9.1,
+	// 38 → 38). Editing still uses the raw full-precision value (see startEdit).
+	function fmtAxis(v: number | undefined): string {
+		if (v === undefined || v === null || !isFinite(v)) return '';
+		return String(Math.round(v * 10) / 10);
+	}
+
 	// --- Style helpers ---
 	function cellBg(row: number, col: number): string {
 		if (!colorGradient || !data[row]) return '';
@@ -430,6 +467,33 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="table-editor" tabindex="0" role="grid" onkeydown={onKeyDown}>
+	<!-- Dimension control (resizable tables only) -->
+	{#if resizable && !readOnly}
+		<div class="flex items-center gap-2 mb-2 text-[10px] flex-wrap">
+			{#if maxRows > 1}
+				<span class="text-[var(--color-dash-text-dim)] uppercase">{t('table.rows')}</span>
+				<div class="flex items-center">
+					<button onclick={() => changeRows(-1)} disabled={numRows <= minRows}
+						class="px-1.5 py-0.5 rounded-l bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] disabled:opacity-30">−</button>
+					<span class="px-2 py-0.5 bg-[var(--color-dash-bg)] border-y border-[var(--color-dash-border)] font-mono text-[var(--color-dash-text)] min-w-[22px] text-center">{numRows}</span>
+					<button onclick={() => changeRows(1)} disabled={numRows >= maxRows}
+						class="px-1.5 py-0.5 rounded-r bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] disabled:opacity-30">+</button>
+				</div>
+			{/if}
+			<span class="text-[var(--color-dash-text-dim)] uppercase">{t('table.cols')}</span>
+			<div class="flex items-center">
+				<button onclick={() => changeCols(-1)} disabled={numCols <= minCols}
+					class="px-1.5 py-0.5 rounded-l bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] disabled:opacity-30">−</button>
+				<span class="px-2 py-0.5 bg-[var(--color-dash-bg)] border-y border-[var(--color-dash-border)] font-mono text-[var(--color-dash-text)] min-w-[22px] text-center">{numCols}</span>
+				<button onclick={() => changeCols(1)} disabled={numCols >= maxCols}
+					class="px-1.5 py-0.5 rounded-r bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] disabled:opacity-30">+</button>
+			</div>
+			{#if maxRows > 1}
+				<span class="px-1.5 py-0.5 rounded font-mono {is2D ? 'bg-[var(--color-dash-accent)]/20 text-[var(--color-dash-accent)]' : 'bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)]'}">{is2D ? '2D' : '1D'}</span>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Math toolbar (only when not readOnly and has selection) -->
 	{#if !readOnly && hasSelection}
 		<div class="flex items-center gap-1.5 mb-2 flex-wrap">
@@ -469,7 +533,7 @@
 	{#if cursorInfo}
 		<div class="flex items-center gap-2 mb-1 text-[10px] flex-wrap">
 			<span class="text-[var(--color-dash-warn)] font-mono">
-				X={liveCursorX?.toFixed(0)} {#if liveCursorY !== undefined}Y={liveCursorY?.toFixed(0)}{/if}
+				{xAxisLabel ?? 'X'}={liveCursorX?.toFixed(0)}{#if liveCursorY !== undefined}&nbsp;&nbsp;{yAxisLabel ?? 'Y'}={liveCursorY?.toFixed(0)}{/if}
 			</span>
 			{#if interpolatedValue !== null}
 				<span class="text-[var(--color-dash-text)] font-mono font-bold">= {interpolatedValue.toFixed(decimals)}</span>
@@ -494,7 +558,7 @@
 
 	<!-- Table -->
 	<div class="table-scroll overflow-x-auto relative">
-		<table class="border-collapse select-none" style="touch-action: manipulation">
+		<table class="border-collapse select-none" style="table-layout: fixed; width: {tableWidthPx}px; touch-action: manipulation">
 			<tbody>
 				{#each displayRowIndices as dataRow}
 					<tr>
@@ -514,11 +578,11 @@
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default
+										class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
 											{ySelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 										onmousedown={(e) => onCellMouseDown(dataRow, -1, e)}
 										onmouseenter={() => onCellMouseEnter(dataRow, -1)}>
-										{yAxisValues?.[dataRow] ?? ''}
+										{fmtAxis(yAxisValues?.[dataRow])}
 									</div>
 								{/if}
 							</td>
@@ -581,11 +645,11 @@
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default
+									class="w-[60px] h-7 flex items-center justify-center text-[10px] font-mono border transition-colors duration-75 cursor-default overflow-hidden
 										{xSelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 									onmousedown={(e) => onCellMouseDown(-1, c, e)}
 									onmouseenter={() => onCellMouseEnter(-1, c)}>
-									{xAxisValues[c]}
+									{fmtAxis(xAxisValues[c])}
 								</div>
 							{/if}
 						</td>
@@ -623,10 +687,12 @@
 		height: 1.5px;
 		background: var(--color-dash-warn);
 		opacity: 0.6;
+		transform: translateY(-50%);   /* center the line on its `top` coordinate */
 	}
 	.crosshair-v {
 		width: 1.5px;
 		background: var(--color-dash-warn);
 		opacity: 0.6;
+		transform: translateX(-50%);   /* center the line on its `left` coordinate */
 	}
 </style>

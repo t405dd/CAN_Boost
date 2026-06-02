@@ -126,9 +126,12 @@ export function findCursorCell(
 		fracRow = findFractionalIndex(yAxisValues, numRows, cursorY);
 	}
 
+	// col/row mark the *nearest* node (for the highlight ring) so it coincides
+	// with the crosshair; fracCol/fracRow keep the exact position for the
+	// crosshair lines and bilinear interpolation.
 	return {
-		col: Math.min(Math.floor(fracCol), numCols - 1),
-		row: Math.min(Math.floor(fracRow), numRows - 1),
+		col: Math.max(0, Math.min(Math.round(fracCol), numCols - 1)),
+		row: Math.max(0, Math.min(Math.round(fracRow), numRows - 1)),
 		fracCol,
 		fracRow
 	};

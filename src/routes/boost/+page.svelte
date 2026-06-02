@@ -6,6 +6,7 @@
 	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
+	import { resizeTable } from '$lib/components/table-editor/resize';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, enumToFirmwareName, enumToPwaName } from '$lib/utils/param-mapping';
 	import { loadSignalLabels, getCacheSlotDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
@@ -408,6 +409,23 @@
 		deltaMapTable.xAxisValues = values;
 	}
 
+	// --- Table resize (rows × cols). 1 row = 1D, >=2 = 2D. fill = value for new cells. ---
+	function onTargetResize(rows: number, cols: number) {
+		targetTable = resizeTable(targetTable, rows, cols, 100);
+	}
+	function onCorr1Resize(rows: number, cols: number) {
+		corr1 = resizeTable(corr1, rows, cols, 100);
+	}
+	function onCorr2Resize(rows: number, cols: number) {
+		corr2 = resizeTable(corr2, rows, cols, 100);
+	}
+	function onBiasResize(rows: number, cols: number) {
+		biasTable = resizeTable(biasTable, rows, cols, 50);
+	}
+	function onDeltaMapResize(_rows: number, cols: number) {
+		deltaMapTable = resizeTable(deltaMapTable, 1, cols, 40); // DeltaMAP всегда 1D
+	}
+
 	function toggleSection(id: string) {
 		activeSection = activeSection === id ? null : id;
 	}
@@ -641,6 +659,8 @@
 						yAxisLabel="TPS"
 						liveCursorX={liveRpm}
 						liveCursorY={liveTps}
+						resizable={true}
+						onResize={onTargetResize}
 						onDataChange={onTargetDataChange}
 						onAxisChange={onTargetAxisChange}
 					/>
@@ -694,6 +714,8 @@
 						yAxisLabel={enumParamShortName(settings.corr1YAxisParam)}
 						liveCursorX={liveVal(settings.corr1AxisParam)}
 						liveCursorY={liveVal(settings.corr1YAxisParam)}
+						resizable={true}
+						onResize={onCorr1Resize}
 						onDataChange={onCorr1DataChange}
 						onAxisChange={onCorr1AxisChange}
 					/>
@@ -747,6 +769,8 @@
 						yAxisLabel={enumParamShortName(settings.corr2YAxisParam)}
 						liveCursorX={liveVal(settings.corr2AxisParam)}
 						liveCursorY={liveVal(settings.corr2YAxisParam)}
+						resizable={true}
+						onResize={onCorr2Resize}
 						onDataChange={onCorr2DataChange}
 						onAxisChange={onCorr2AxisChange}
 					/>
@@ -1052,6 +1076,8 @@
 							yAxisLabel="Target kPa"
 							liveCursorX={liveRpm}
 							liveCursorY={liveMap}
+							resizable={true}
+							onResize={onBiasResize}
 							onDataChange={onBiasDataChange}
 							onAxisChange={onBiasAxisChange}
 						/>
@@ -1083,6 +1109,9 @@
 							xAxisLabel="RPM"
 							yAxisLabel=""
 							liveCursorX={liveRpm}
+							resizable={true}
+							maxRows={1}
+							onResize={onDeltaMapResize}
 							onDataChange={onDeltaMapDataChange}
 							onAxisChange={onDeltaMapAxisChange}
 						/>

@@ -432,6 +432,8 @@ export default {
 	'table.interpV': 'Interp V',
 	'table.apply': 'Apply',
 	'table.selectAll': 'Select All',
+	'table.rows': 'Rows',
+	'table.cols': 'Cols',
 
 	// Grid editor
 	'grid.pickParam': 'Choose Parameter',
