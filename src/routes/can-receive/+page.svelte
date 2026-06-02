@@ -9,6 +9,8 @@
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
+	import SignalCatalogModal from '$lib/components/SignalCatalogModal.svelte';
+	import { loadSignalCatalog, type PredefinedSignal } from '$lib/utils/signal-catalog';
 
 	let messages = $state<CanMessageConfig[]>([]);
 	let expandedIndex = $state<number | null>(null);
@@ -30,23 +32,9 @@
 	const MAX_MESSAGES = 10;
 	const MAX_SIGNALS = 8;
 
-	interface PredefinedSignal {
-		internalId: string;
-		friendlyName: string;
-		groupName: string;
-		unit: string;
-		defaultCanId: number;
-		defaultIsExtendedId: boolean;
-		startByte: number;
-		lengthBytes: number;
-		dataType: CanSignalDataType;
-		isBigEndian: boolean;
-		multiplier: number;
-		divider: number;
-		offset: number;
-		requiresFtoC: boolean;
-		requiresVssProcessing: boolean;
-	}
+	let catalogOpen = $state(false);
+	// internalId всех уже добавленных сигналов — для пометки дубликатов в каталоге.
+	let existingSignalIds = $derived(messages.flatMap((m) => m.signals.map((s) => s.signalName)));
 
 	function showStatus(msg: string, durationMs = 3000) {
 		statusMsg = msg;
@@ -143,6 +131,58 @@
 		messages[msgIdx].signals.splice(sigIdx, 1);
 	}
 
+	// Сколько сигналов реально занимают cache-слоты прошивки (enabled в enabled-сообщении).
+	function enabledSignalCount(): number {
+		let n = 0;
+		for (const m of messages) if (m.isEnabled) for (const s of m.signals) if (s.isEnabled) n++;
+		return n;
+	}
+
+	// Добавление из каталога: размещаем по defaultCanId (находим сообщение или
+	// создаём новое), с учётом лимитов сообщений/сигналов и потолка 40 cache-слотов.
+	function addFromCatalog(sigs: PredefinedSignal[]) {
+		let added = 0, skipped = 0;
+		let enabled = enabledSignalCount();
+		for (const s of sigs) {
+			if (enabled >= 40) { skipped++; continue; }            // потолок cache-слотов
+			let msg = messages.find((m) => m.canId === s.defaultCanId);
+			if (!msg) {
+				if (messages.length >= MAX_MESSAGES) { skipped++; continue; }
+				messages.push({
+					canId: s.defaultCanId,
+					isExtendedId: s.defaultIsExtendedId,
+					expectedDlc: 8,
+					isEnabled: true,
+					description: `0x${s.defaultCanId.toString(16).toUpperCase()} (${s.defaultCanId})`,
+					signals: []
+				});
+				msg = messages[messages.length - 1];
+			}
+			if (msg.signals.some((x) => x.signalName === s.internalId)) { skipped++; continue; }
+			if (msg.signals.length >= MAX_SIGNALS) { skipped++; continue; }
+			msg.signals.push({
+				signalName: s.internalId,
+				userLabel: s.friendlyName,
+				userUnit: normalizeTempUnit(s.unit, s.requiresFtoC),
+				userPrecision: 1,
+				isEnabled: true,
+				startByte: s.startByte,
+				lengthBytes: s.lengthBytes,
+				dataType: s.dataType,
+				isBigEndian: s.isBigEndian,
+				multiplier: s.multiplier,
+				divider: s.divider,
+				offset: s.offset,
+				requiresFtoC: s.requiresFtoC,
+				requiresVssProcessing: s.requiresVssProcessing
+			});
+			added++;
+			enabled++;
+		}
+		catalogOpen = false;
+		showStatus(skipped > 0 ? t('canRx.catalogAdded', added, skipped) : t('canRx.catalogAddedN', added));
+	}
+
 	function formatCanId(id: number): string {
 		return '0x' + id.toString(16).toUpperCase().padStart(3, '0');
 	}
@@ -159,8 +199,7 @@
 
 	async function loadMs3Preset() {
 		try {
-			const res = await fetch('/predefined_signals.json');
-			const library: PredefinedSignal[] = await res.json();
+			const library = await loadSignalCatalog();
 			const simplified = library.filter(s => s.groupName.trim() === 'Simplified Dash');
 
 			// Group by CAN ID
@@ -244,6 +283,10 @@
 			<button onclick={addMessage} disabled={messages.length >= MAX_MESSAGES}
 				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-border)] text-[var(--color-dash-text)] hover:bg-[var(--color-dash-card-hover)] transition-colors disabled:opacity-40">
 				{t('canRx.addMessage')}
+			</button>
+			<button onclick={() => catalogOpen = true} disabled={messages.length >= MAX_MESSAGES}
+				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 border border-[var(--color-dash-accent)]/30 transition-colors disabled:opacity-40">
+				{t('canRx.addFromCatalog')}
 			</button>
 			<button onclick={loadMs3Preset} disabled={messages.length >= MAX_MESSAGES}
 				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/20 border border-[var(--color-dash-accent)]/30 transition-colors disabled:opacity-40">
@@ -463,3 +506,10 @@
 		{/each}
 	{/if}
 </div>
+
+<SignalCatalogModal
+	open={catalogOpen}
+	existingIds={existingSignalIds}
+	onadd={addFromCatalog}
+	onclose={() => catalogOpen = false}
+/>
