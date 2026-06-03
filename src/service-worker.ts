@@ -18,7 +18,10 @@ const CACHE = `can-boost-${version}`;
 const SHELL = `${base}/`;
 
 // Всё, что precache при установке: код приложения + статика + предрендеренные страницы + оболочка SPA.
-const PRECACHE = [...build, ...files, ...prerendered, SHELL];
+// Дедуп через Set: prerendered уже содержит оболочку (${base}/), а Cache.addAll падает с
+// InvalidStateError на дублирующихся запросах → установка SW проваливалась, новый SW не активировался
+// (браузер продолжал отдавать старую сборку).
+const PRECACHE = [...new Set([...build, ...files, ...prerendered, SHELL])];
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
