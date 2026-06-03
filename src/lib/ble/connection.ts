@@ -172,8 +172,8 @@ async function connectToServer(): Promise<boolean> {
 
 		// Wait for ESP32 to stabilize after GATT connection.
 		setStatus('gatt_stabilizing');
-		console.log('[BLE] Waiting 0.8s for ESP32 to stabilize...');
-		await new Promise(r => setTimeout(r, 800));   // было 1.5s — сокращено, чтобы быстрее доходить до чтений
+		console.log('[BLE] Waiting 1.5s for ESP32 to stabilize...');
+		await new Promise(r => setTimeout(r, 1500));   // НЕ подрезать: <1.5s ломает service discovery на части телефонов
 
 		// Discover services one-by-one with small delays and timeout
 		let found = 0;
@@ -200,7 +200,7 @@ async function connectToServer(): Promise<boolean> {
 				const msg = err instanceof Error ? err.message : String(err);
 				console.warn(`[BLE]   Service ${uuid.substring(0, 8)}... not found (${msg})`);
 			}
-			await new Promise(r => setTimeout(r, 50));   // было 150мс на сервис — сокращено
+			await new Promise(r => setTimeout(r, 150));
 		}
 
 		setStatus('discovering_services', `${found}/${ALL_SERVICE_UUIDS.length}`);
@@ -218,9 +218,9 @@ async function connectToServer(): Promise<boolean> {
 		setStatus('authenticating');
 		await sendAuthPin();
 
-		// Ждём 400мс — прошивка дисконнектит через ~300мс если PIN неверный (запас над окном детекции).
+		// Ждём 500мс — прошивка дисконнектит через ~300мс если PIN неверный.
 		// Это также даёт Windows время завершить BLE-паринг без ложного срабатывания.
-		await new Promise(r => setTimeout(r, 400));
+		await new Promise(r => setTimeout(r, 500));
 
 		// Проверяем соединение после отправки PIN
 		if (!connection.server?.connected) {
