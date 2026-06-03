@@ -450,7 +450,16 @@ export async function readCharacteristic(
 	return queueBleOperation(async () => {
 		const char = await getCharacteristic(serviceUuid, charUuid);
 		if (!char) return null;
-		return await char.readValue();
+		// Android: readValue может отклониться сразу после коннекта — ретраим с паузой.
+		for (let i = 0; i < 5; i++) {
+			try {
+				return await char.readValue();
+			} catch (e) {
+				console.warn(`[BLE] readValue ${charUuid.substring(0, 8)} попытка ${i + 1}/5: ${(e as Error)?.message ?? e}`);
+				await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+			}
+		}
+		return null;
 	});
 }
 
@@ -503,9 +512,12 @@ export async function subscribeCharacteristic(
 		if (target.value) callback(target.value);
 	};
 
+	// startNotifications — это GATT-операция. Гоняем её через ОБЩУЮ очередь, иначе на Android
+	// подписка (напр. learn-delta на /boost) стартует параллельно с чтениями конфигов hydrate →
+	// «GATT operation failed for unknown reason» на обеих сторонах.
 	try {
 		char.addEventListener('characteristicvaluechanged', handler);
-		await char.startNotifications();
+		await queueBleOperation(() => char.startNotifications());
 		return () => {
 			char.removeEventListener('characteristicvaluechanged', handler);
 			char.stopNotifications().catch(() => {});

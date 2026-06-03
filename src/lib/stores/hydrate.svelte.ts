@@ -34,6 +34,9 @@ async function step(name: string, fn: () => Promise<unknown>): Promise<void> {
  *  'disconnected', поэтому сброс не срабатывал). Дублирующиеся чтения гасит in-flight дедуп в
  *  загрузчиках. Тяжёлые таблицы грузятся лениво по раскрытию секций на страницах. */
 export async function hydrateOnConnect(): Promise<void> {
+	// Дать GATT устояться: на Android чтения сразу (~24мс) после 'connected' отклоняются
+	// («GATT operation failed»). Небольшая пауза снижает число неудачных попыток. На ПК безвредно.
+	await new Promise((r) => setTimeout(r, 600));
 	console.log('[hydrate] старт чтения конфигов с устройства');
 	await step('boost_maps', ensureBoostMapsLoaded);        // мелкое прямое чтение — селектор карт во всех страницах
 	await step('boost_settings', () => loadWithRetry(loadBoostSettings)); // Enable/актуатор/сигналы/PID (/boost)

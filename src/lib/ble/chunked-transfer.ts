@@ -26,6 +26,24 @@ function chunkedReadTimeout(expectedLen: number): number {
 const CHUNKED_SUBSCRIBE_SETTLE_MS = 300;
 const CHUNKED_READ_ATTEMPTS = 2;
 
+// Android Chrome часто отклоняет САМ readValue() сразу после коннекта с «GATT operation failed for
+// unknown reason» (конфликт с потоком live-нотификаций / неустоявшийся GATT). На десктопе этого нет.
+// Поэтому ретраим сам readValue с нарастающей паузой — попадаем в окно между нотификациями.
+const READ_VALUE_ATTEMPTS = 5;
+async function readValueRetry(char: BluetoothRemoteGATTCharacteristic, label: string): Promise<DataView> {
+	let lastErr: unknown;
+	for (let i = 0; i < READ_VALUE_ATTEMPTS; i++) {
+		try {
+			return await char.readValue();
+		} catch (e) {
+			lastErr = e;
+			console.warn(`[BLE Transfer] readValue ${label} попытка ${i + 1}/${READ_VALUE_ATTEMPTS}: ${(e as Error)?.message ?? e}`);
+			await new Promise((r) => setTimeout(r, 300 * (i + 1)));   // 300→600→900→1200мс
+		}
+	}
+	throw lastErr;
+}
+
 /** Read a JSON config from a BLE characteristic (handles chunked if needed).
  *  Queued to prevent concurrent GATT access that crashes ESP32 NimBLE. */
 export async function readJsonConfig<T = unknown>(
@@ -44,7 +62,7 @@ export async function readJsonConfig<T = unknown>(
 		// Chunked-notify чтения на Android иногда теряют нотификацию → null. Повторяем chunked-путь
 		// до CHUNKED_READ_ATTEMPTS раз. Прямое (мелкое) чтение надёжно и возвращается сразу.
 		for (let attempt = 1; attempt <= CHUNKED_READ_ATTEMPTS; attempt++) {
-			const value = await char.readValue();
+			const value = await readValueRetry(char, charUuid.substring(0, 8));
 			if (value.byteLength === 0) {
 				console.warn('[BLE Transfer] Empty response');
 				return null;
@@ -255,7 +273,7 @@ export async function readUint8(
 	return queueBleOperation(async () => {
 		const char = await getCharacteristic(serviceUuid, charUuid);
 		if (!char) return null;
-		const value = await char.readValue();
+		const value = await readValueRetry(char, charUuid.substring(0, 8));
 		if (value.byteLength === 0) return null;
 		return value.getUint8(0);
 	});
