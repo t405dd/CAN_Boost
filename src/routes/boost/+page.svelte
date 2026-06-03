@@ -139,9 +139,9 @@
 			learnRate: 0.05,
 			learnErrorThreshold: 5.0,
 			learnStabilityTimeMs: 2000.0,
-			mapSignalParam: 12,    // PARAM_CACHE_SLOT_0
-			rpmSignalParam: 13,    // PARAM_CACHE_SLOT_1
-			tpsSignalParam: 15,    // PARAM_CACHE_SLOT_3
+			mapSignalParam: 15,    // PARAM_CACHE_SLOT_0 = cache slot 0 (map). База cache-слотов = 15!
+			rpmSignalParam: 16,    // PARAM_CACHE_SLOT_1 = cache slot 1 (rpm)
+			tpsSignalParam: 18,    // PARAM_CACHE_SLOT_3 = cache slot 3 (tps)
 			knockSignalParam: 0,   // PARAM_NONE
 			corr1AxisParam: 0,
 			corr1YAxisParam: 0,
