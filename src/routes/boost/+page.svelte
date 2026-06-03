@@ -663,23 +663,23 @@
 			{/if}
 		</div>
 
-		<!-- Карты буста: переключение — в шапке PWA (сквозное). Здесь — редактор активной карты. -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2">
-			<div class="flex items-center justify-between">
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.maps')}<HelpTip key="help.boost.maps" /></span>
-				{#if boostMaps.switching}
-					<span class="text-[10px] text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
-						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
-						{t('common.saving')}
-					</span>
-				{/if}
-			</div>
-			<p class="text-[10px] text-[var(--color-dash-text-dim)]">
-				{t('boost.mapEditHint')}
-				<span class="text-[var(--color-dash-accent)] font-bold">{boostMaps.mapsMeta[boostMaps.activeMap]?.name || `Map ${boostMaps.activeMap + 1}`}</span>
-			</p>
-			{#if boostMaps.mapsMeta[boostMaps.editMap]}
-				<div class="flex items-end gap-2 flex-wrap pt-1">
+		<!-- Карты буста (аккордеон). Переключение — в шапке PWA (сквозное); здесь редактор активной карты. -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('maps')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1">
+					{t('boost.maps')}<HelpTip key="help.boost.maps" />
+					{#if boostMaps.switching}<span class="w-3 h-3 ml-1 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>{/if}
+				</span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'maps' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'maps'}
+				<div class="px-3 pb-3 space-y-2">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">
+						{t('boost.mapEditHint')}
+						<span class="text-[var(--color-dash-accent)] font-bold">{boostMaps.mapsMeta[boostMaps.activeMap]?.name || `Map ${boostMaps.activeMap + 1}`}</span>
+					</p>
+					{#if boostMaps.mapsMeta[boostMaps.editMap]}
+						<div class="flex items-end gap-2 flex-wrap pt-1">
 					<label class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase block">{t('boost.mapName')}</span>
 						<input type="text" maxlength="15" bind:value={boostMaps.mapsMeta[boostMaps.editMap].name}
@@ -710,6 +710,8 @@
 				</div>
 				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
 			{/if}
+			</div>
+		{/if}
 		</section>
 
 		<!-- Калибровка (обучение Ki/Kp/Kd + BIAS на лету) -->
@@ -747,19 +749,28 @@
 			</div>
 		</section>
 
-		<!-- 1. Enable & Actuator -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-3">
-			<div class="flex items-center justify-between">
-				<label class="flex items-center gap-2 cursor-pointer">
-					<input type="checkbox" bind:checked={settings.enabled} class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.enable')}<HelpTip key="help.boost.enable" /></span>
-				</label>
-				<button onclick={saveSettings} disabled={saving}
-					class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-					{saving ? t('common.saving') : t('common.saveToDevice')}
-				</button>
-				{@render restoreBtn(restoreSettings)}
-			</div>
+		<!-- 1. Включить бустконтроллер + актуатор + CAN-выход (аккордеон) -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('enable')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+					{t('boost.enable')}<HelpTip key="help.boost.enable" />
+					{#if settings.enabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+				</span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'enable' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'enable'}
+				<div class="px-3 pb-3 space-y-3">
+					<div class="flex items-center justify-between">
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={settings.enabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.enable')}<HelpTip key="help.boost.enable" /></span>
+						</label>
+						<button onclick={saveSettings} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
+						</button>
+						{@render restoreBtn(restoreSettings)}
+					</div>
 
 			<div class="flex items-center gap-3 flex-wrap">
 				<!-- Actuator type -->
@@ -807,6 +818,8 @@
 						class="w-16 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
 				</label>
 			</div>
+				</div>
+			{/if}
 		</section>
 
 		<!-- 2. Signal Sources -->
