@@ -250,7 +250,7 @@ export interface BoostControllerSettings {
 	kd: number;
 	iWindupLimit: number;
 	dFilterAlpha: number;
-	overboostLimit_kPa: number;
+	// overboostLimit_kPa — per-map (см. BoostMapMeta), не входит в общие настройки
 	knockThreshold_deg: number;
 	knockReduction_pct: number;
 	canTimeoutMs: number;
@@ -307,6 +307,23 @@ export interface BoostPidTables {
 	ki: BoostTable;
 	kp: BoostTable;
 	kd: BoostTable;
+}
+
+// --- Boost Maps (4 switchable maps) ---
+
+/** Per-map metadata. The target/corr1/corr2 tables themselves are addressed via
+ *  the editMap slot through the existing boost_target / boost_corr characteristics. */
+export interface BoostMapMeta {
+	name: string;
+	overboostLimit_kPa: number;   // per-map hard overboost limit (kPa)
+}
+
+/** Wire format of the boost_maps characteristic (mirrors firmware boostMapsToJson). */
+export interface BoostMapsState {
+	activeMap: number;   // 0..3 — map the controller runs
+	editMap: number;     // 0..3 — slot addressed by boost_target / boost_corr chars
+	maps: BoostMapMeta[];
+	busy?: boolean;      // true while a deferred switch/copy is still running on the device
 }
 
 // --- Color Utils ---

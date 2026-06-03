@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP,
+	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP, CHR_BOOST_MAPS, CHR_BOOST_LEARN_DELTA,
 		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
-	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
+	import { subscribeCharacteristic } from '$lib/ble/connection';
+	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables, BoostMapMeta, BoostMapsState } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
@@ -28,6 +29,12 @@
 	let learnTables = $state<BoostPidTables>(defaultLearnTables());
 	let biasTable = $state<BoostTable>(defaultBiasTable());
 	let deltaMapTable = $state<BoostCorrectionTable>(defaultDeltaMapTable());
+
+	// --- Карты буста (4 переключаемые) ---
+	let mapsMeta = $state<BoostMapMeta[]>(defaultMapsMeta());
+	let activeMap = $state(0);
+	let editMap = $state(0);          // слот, который адресуют target/corr (следует за active)
+	let mapSaving = $state(false);
 
 	let loading = $state(false);
 	let saving = $state(false);
@@ -125,7 +132,6 @@
 			kp: 2.0, ki: 0.5, kd: 0.3,
 			iWindupLimit: 50.0,
 			dFilterAlpha: 0.2,
-			overboostLimit_kPa: 250.0,
 			knockThreshold_deg: 2.0,
 			knockReduction_pct: 15.0,
 			canTimeoutMs: 500.0,
@@ -157,6 +163,10 @@
 			phaseHysteresis: 1.1,
 			learnBiasRate: 0.05
 		};
+	}
+
+	function defaultMapsMeta(): BoostMapMeta[] {
+		return Array.from({ length: 4 }, (_, i) => ({ name: `Map ${i + 1}`, overboostLimit_kPa: 250.0 }));
 	}
 
 	function defaultBiasTable(): BoostTable {
@@ -223,6 +233,30 @@
 		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
 		if (s) settings = s;
 	}
+	// Читает состояние карт; возвращает true, если устройство ещё выполняет switch/copy (busy).
+	async function loadMaps(): Promise<boolean> {
+		const m = await readJsonConfig<BoostMapsState>(SVC_BOOST, CHR_BOOST_MAPS);
+		if (m && Array.isArray(m.maps) && m.maps.length > 0) {
+			mapsMeta = m.maps;
+			activeMap = m.activeMap ?? 0;
+			editMap = m.editMap ?? activeMap;
+			return !!m.busy;
+		}
+		return false;
+	}
+
+	// switch/copy выполняются на устройстве отложенно (в loop(), не в BLE-колбэке). Ждём
+	// busy=false, затем перечитываем таблицы edit-слота. Опрос дешёвый (мелкий boost_maps read).
+	async function waitMapReadyThenReload() {
+		for (let i = 0; i < 40; i++) {           // до ~6с страховки
+			const busy = await loadMaps();
+			if (!busy) break;
+			await new Promise((r) => setTimeout(r, 150));
+		}
+		loaded.target = false;                    // target/corr теперь адресуют новый/обновлённый слот
+		loaded.corr = false;
+		if (activeSection) await ensureSectionData(activeSection);
+	}
 	async function loadTarget() {
 		const tgt = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_TARGET);
 		if (tgt) targetTable = tgt;
@@ -244,11 +278,14 @@
 			};
 		}
 		loaded.learn = true;
+		// Таблица открыта во время калибровки впервые → зафиксировать базлайн (для оценки изменения).
+		if (calibrating && !hlBase.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
 	}
 	async function loadBias() {
 		const bias = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS);
 		if (bias) biasTable = bias;
 		loaded.bias = true;
+		if (calibrating && !hlBase.bias) snapBaseline('bias');
 	}
 	async function loadDelta() {
 		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
@@ -283,6 +320,7 @@
 		statusMsg = '';
 		try {
 			await loadSettings();
+			await loadMaps();
 			if (loaded.target) await loadTarget();
 			if (loaded.corr) await loadCorr();
 			if (loaded.learn) await loadLearn();
@@ -314,6 +352,60 @@
 			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
 		} finally {
 			saving = false;
+		}
+	}
+
+	// --- Карты буста ---
+	// Тап по кнопке карты = одно нажатие: сразу активна, персистится в контроллер,
+	// и та же карта открывается на редактирование (editMap следует за active).
+	async function setActiveMap(n: number) {
+		if (n === activeMap && n === editMap) return;
+		mapSaving = true;
+		statusMsg = '';
+		try {
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { activeMap: n });
+			if (ok) {
+				await waitMapReadyThenReload();   // устройство переключает карту в loop(); ждём готовность
+				showStatus(t('boost.mapSwitched'));
+			} else {
+				showStatus(t('canRx.saveFailed'));
+			}
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			mapSaving = false;
+		}
+	}
+
+	// Сохранить мету всех карт (имена + per-map overboost).
+	async function saveMapsMeta() {
+		mapSaving = true;
+		try {
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { maps: mapsMeta });
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			mapSaving = false;
+		}
+	}
+
+	// Заполнить текущий edit-слот из другого слота (target+corr+overboost; имя не меняется).
+	async function copyMapFrom(src: number) {
+		if (!confirm(t('boost.fillFromConfirm'))) return;
+		mapSaving = true;
+		try {
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { copy: { from: src, to: editMap } });
+			if (ok) {
+				await waitMapReadyThenReload();   // копирование идёт в loop(); ждём готовность
+				showStatus(t('canRx.savedOk'));
+			} else {
+				showStatus(t('canRx.saveFailed'));
+			}
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			mapSaving = false;
 		}
 	}
 
@@ -383,11 +475,84 @@
 		}
 	}
 
+	// --- Подсветка изменённых при обучении ячеек: показывает СУММАРНОЕ изменение коэффициента
+	//     относительно значения на старте калибровки (рост → зелёный, падение → красный,
+	//     плотность ∝ величине). Цвета держатся всю калибровку и ПРОПАДАЮТ при «Сохранить»/«Отменить»
+	//     (сброс базлайна) — чтобы оценить, на сколько изменились коэффициенты перед записью. ---
+	const HL_FLOOR = 0.15;   // минимальная видимость любого изменения
+	// |суммарное изменение| → полная плотность (свой масштаб на таблицу; легко крутится)
+	const HL_SCALE = { ki: 15, kp: 3, kd: 1.5, bias: 25 } as const;
+	type HlKey = keyof typeof HL_SCALE;
+
+	// Базлайн = снимок значений на старте калибровки (или при первой загрузке таблицы в калибровке).
+	let hlBase = $state<Record<HlKey, number[][] | null>>({ ki: null, kp: null, kd: null, bias: null });
+
+	function snapBaseline(key: HlKey) {
+		const data = key === 'bias' ? biasTable.data : learnTables[key].data;
+		hlBase[key] = data.map((r) => (r ? r.slice() : []));   // глубокая копия
+	}
+	function clearBaselines() {
+		hlBase = { ki: null, kp: null, kd: null, bias: null };   // base=null → подсветка пропадает
+	}
+	// Сетка интенсивностей = (текущее − базлайн), нормированная. base=null → пусто (нет цветов).
+	function netGrid(data: number[][], base: number[][] | null, scale: number): number[][] {
+		if (!base) return [];
+		const out: number[][] = [];
+		for (let r = 0; r < data.length; r++) {
+			const drow = data[r];
+			if (!drow) continue;
+			const brow = base[r];
+			const orow: number[] = [];
+			for (let c = 0; c < drow.length; c++) {
+				const b = brow?.[c];
+				const net = b === undefined ? 0 : drow[c] - b;
+				orow[c] = net === 0 ? 0 : Math.sign(net) * Math.max(HL_FLOOR, Math.min(1, Math.abs(net) / scale));
+			}
+			out[r] = orow;
+		}
+		return out;
+	}
+	// Реактивно: при изменении ячеек (дельты обучения) ИЛИ базлайна — пересчёт и перерисовка.
+	let hlKi = $derived.by(() => netGrid(learnTables.ki.data, hlBase.ki, HL_SCALE.ki));
+	let hlKp = $derived.by(() => netGrid(learnTables.kp.data, hlBase.kp, HL_SCALE.kp));
+	let hlKd = $derived.by(() => netGrid(learnTables.kd.data, hlBase.kd, HL_SCALE.kd));
+	let hlBias = $derived.by(() => netGrid(biasTable.data, hlBase.bias, HL_SCALE.bias));
+
+	// --- Live-дельты обучения: устройство шлёт notify ТОЛЬКО с изменёнными ячейками
+	//     (tableId,row,col,value), без перекачки целых таблиц и без паузы live-данных. ---
+	let learnDeltaUnsub: (() => void) | null = null;
+	function applyLearnDelta(view: DataView) {
+		if (view.byteLength < 1) return;
+		const count = view.getUint8(0);
+		let off = 1;
+		for (let i = 0; i < count && off + 7 <= view.byteLength; i++) {
+			const tableId = view.getUint8(off);
+			const row = view.getUint8(off + 1);
+			const col = view.getUint8(off + 2);
+			const value = view.getFloat32(off + 3, true); // LE, мирроринг buildBoostLearnDeltaPacket
+			off += 7;
+			// 0=Ki, 1=Kp, 2=Kd, 3=BIAS — должно совпадать с BOOST_LEARN_ID_* в прошивке
+			const key: HlKey | null = tableId === 0 ? 'ki' : tableId === 1 ? 'kp'
+				: tableId === 2 ? 'kd' : tableId === 3 ? 'bias' : null;
+			if (!key) continue;
+			const tbl = key === 'bias' ? biasTable : learnTables[key];
+			if (!tbl?.data || row >= tbl.data.length || col >= (tbl.data[row]?.length ?? 0)) continue;
+			tbl.data[row][col] = value;   // мутация $state → перерисует значение И подсветку (derived hl* = текущее−базлайн)
+		}
+	}
+
 	// --- Калибровка (обучение на лету) через CHR_COMMAND ---
 	async function startCalibration() {
 		try {
 			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START);
 			calibrating = true;
+			// Снимаем базлайн ВСЕХ обучаемых таблиц (Ki/Kp/Kd + BIAS) на старте = последнее сохранённое.
+			// Грузим их разом (один раз), чтобы потом ходить по таблицам по одной и видеть суммарное
+			// изменение КАЖДОЙ от начала калибровки, а не от момента её открытия.
+			clearBaselines();
+			calStatus = t('boost.calBaselining');
+			await loadLearn();   // Ki/Kp/Kd (+ snapBaseline внутри: calibrating && базлайн пуст)
+			await loadBias();    // BIAS
 			calStatus = t('boost.calStarted');
 		} catch (e) {
 			calStatus = (e as Error).message;
@@ -399,6 +564,7 @@
 		try {
 			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_SAVE);
 			calibrating = false;
+			clearBaselines();   // сохранили в контроллер → цвета дельт пропадают
 			calStatus = t('boost.calSaved');
 			await reloadAfterCalibration();  // перечитать обученные таблицы с устройства
 		} catch (e) {
@@ -411,6 +577,7 @@
 		try {
 			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_DISCARD);
 			calibrating = false;
+			clearBaselines();   // отменили → цвета дельт пропадают
 			calStatus = t('boost.calDiscarded');
 			await reloadAfterCalibration();
 		} catch (e) {
@@ -505,12 +672,20 @@
 			// Только настройки сразу (быстро) — таблицы лениво по раскрытию секций.
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 			loadSettings();
+			loadMaps();
 			loadSignalLabels(); // Load CAN Receive config for human-readable names
 			if (activeSection) ensureSectionData(activeSection);
+			// Подписка на live-дельты обучения (приходят только во время калибровки).
+			if (!learnDeltaUnsub) {
+				subscribeCharacteristic(SVC_BOOST, CHR_BOOST_LEARN_DELTA, applyLearnDelta)
+					.then((u) => { learnDeltaUnsub = u; });
+			}
 			initialLoadDone = true;
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
+			if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; }
+			clearBaselines();   // подсветка дельт не переживает разрыв связи
 		}
 	});
 </script>
@@ -538,6 +713,61 @@
 			{/if}
 		</div>
 
+		<!-- Карты буста: 4 переключаемые. Тап = одно нажатие (активна + персист + edit). -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2">
+			<div class="flex items-center justify-between">
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.maps')}<HelpTip key="help.boost.maps" /></span>
+				{#if mapSaving}
+					<span class="text-[10px] text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
+						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+						{t('common.saving')}
+					</span>
+				{/if}
+			</div>
+			<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+				{#each mapsMeta as m, i}
+					<button onclick={() => setActiveMap(i)} disabled={mapSaving}
+						class="px-2 py-2 text-xs rounded border transition-colors disabled:opacity-40 {i === activeMap
+							? 'bg-[var(--color-dash-accent)]/20 border-[var(--color-dash-accent)] text-[var(--color-dash-accent)] font-bold'
+							: 'bg-[var(--color-dash-bg)] border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:border-[var(--color-dash-accent)]'}">
+						<span class="block truncate">{m.name || `Map ${i + 1}`}</span>
+						{#if i === activeMap}<span class="block text-[9px] uppercase tracking-wider">{t('boost.mapActive')}</span>{/if}
+					</button>
+				{/each}
+			</div>
+			{#if mapsMeta[editMap]}
+				<div class="flex items-end gap-2 flex-wrap pt-1">
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase block">{t('boost.mapName')}</span>
+						<input type="text" maxlength="15" bind:value={mapsMeta[editMap].name}
+							class="w-28 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none" />
+					</label>
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.overboostLimit')}<HelpTip key="help.boost.overboostLimit" /></span>
+						<input type="number" step="5" bind:value={mapsMeta[editMap].overboostLimit_kPa}
+							class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+					</label>
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.fillFrom')}<HelpTip key="help.boost.fillFrom" /></span>
+						<select value="" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v !== '') copyMapFrom(parseInt(v)); }}
+							class="block w-32 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none">
+							<option value="">{t('boost.fillFromSelect')}</option>
+							{#each mapsMeta as m, i}
+								{#if i !== editMap}
+									<option value={i}>{m.name || `Map ${i + 1}`}</option>
+								{/if}
+							{/each}
+						</select>
+					</label>
+					<button onclick={saveMapsMeta} disabled={mapSaving}
+						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+						{mapSaving ? t('common.saving') : t('common.saveToDevice')}
+					</button>
+				</div>
+				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
+			{/if}
+		</section>
+
 		<!-- Калибровка (обучение Ki/Kp/Kd + BIAS на лету) -->
 		<section class="rounded-lg border p-3 space-y-2 {calibrating ? 'bg-[var(--color-dash-warn)]/10 border-[var(--color-dash-warn)]/40' : 'bg-[var(--color-dash-card)] border-[var(--color-dash-border)]/50'}">
 			<div class="flex items-center justify-between">
@@ -548,6 +778,8 @@
 				{#if calStatus}<span class="text-[10px] text-[var(--color-dash-text-dim)]">{calStatus}</span>{/if}
 			</div>
 			<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.calibrationHint')}</p>
+				<p class="text-[10px] text-[var(--color-dash-text-dim)] italic">{t('boost.calibrationShared')}</p>
+				{#if calibrating}<p class="text-[10px] text-[var(--color-dash-accent)]">{t('boost.calLiveUpdate')}</p>{/if}
 			<div class="flex items-center gap-2 flex-wrap">
 				{#if !calibrating}
 					<button onclick={startCalibration}
@@ -898,12 +1130,8 @@
 			</button>
 			{#if activeSection === 'safety'}
 				<div class="px-3 pb-3 space-y-2">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.overboostPerMapHint')}</p>
 					<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.overboostLimit')}<HelpTip key="help.boost.overboostLimit" /></span>
-							<input type="number" step="5" bind:value={settings.overboostLimit_kPa}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
 						<label class="space-y-1">
 							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.knockThreshold')}<HelpTip key="help.boost.knockThreshold" /></span>
 							<input type="number" step="0.5" bind:value={settings.knockThreshold_deg}
@@ -1067,6 +1295,7 @@
 							colorGradient={true}
 							gradientMin={0}
 							gradientMax={100}
+							highlight={hlKi}
 							xAxisLabel="RPM"
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
@@ -1087,6 +1316,7 @@
 							colorGradient={true}
 							gradientMin={20}
 							gradientMax={300}
+							highlight={hlKp}
 							xAxisLabel="RPM"
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
@@ -1107,6 +1337,7 @@
 							colorGradient={true}
 							gradientMin={20}
 							gradientMax={500}
+							highlight={hlKd}
 							xAxisLabel="RPM"
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
@@ -1141,6 +1372,7 @@
 							yAxisLabel="Target kPa"
 							liveCursorX={liveRpm}
 							liveCursorY={liveMap}
+							highlight={hlBias}
 							resizable={true}
 							onResize={onBiasResize}
 							onDataChange={onBiasDataChange}

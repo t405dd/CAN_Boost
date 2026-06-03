@@ -35,6 +35,8 @@ export const CHR_BOOST_CORR = '4d533383-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_BOOST_LEARN = '4d533384-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_BOOST_BIAS = '4d533385-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_BOOST_DELTA_MAP = '4d533386-b5a3-f393-e0a9-e50e24dcca9e';
+export const CHR_BOOST_MAPS = '4d533387-b5a3-f393-e0a9-e50e24dcca9e';  // 4 switchable boost maps
+export const CHR_BOOST_LEARN_DELTA = '4d533388-b5a3-f393-e0a9-e50e24dcca9e';  // notify: live learning deltas (changed cells)
 
 // Chunked transfer protocol commands
 export const BLE_CMD_READ_REQ = 0x01;

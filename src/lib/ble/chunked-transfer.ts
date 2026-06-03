@@ -11,7 +11,7 @@ import {
 	BLE_CMD_READ_REQ, BLE_CHUNK_HEADER, BLE_CHUNK_DATA, BLE_CHUNK_END,
 	BLE_CMD_WRITE_START, BLE_CMD_WRITE_DATA, BLE_CMD_WRITE_END
 } from './uuids';
-import { getCharacteristic, pauseLiveData, resumeLiveData, queueBleOperation } from './connection';
+import { getCharacteristic, queueBleOperation } from './connection';
 
 const BLE_MTU = 512;
 // Dynamic timeout: base 10s + ~1s per 10KB for large payloads
@@ -46,13 +46,10 @@ export async function readJsonConfig<T = unknown>(
 		if (firstByte === BLE_CHUNK_HEADER && value.byteLength >= 5) {
 			const totalLen = value.getUint32(1, true);
 			console.log(`[BLE Transfer] Large config detected (${totalLen} bytes), using chunked read`);
-			// Pause live data to free BLE bandwidth for chunked transfer
-			await pauseLiveData();
-			try {
-				return await readChunkedViaNotify<T>(char, totalLen);
-			} finally {
-				await resumeLiveData();
-			}
+			// Live-данные НЕ ставим на паузу: прошивка их шлёт всё равно (пауза была лишь флагом,
+			// скрывавшим пакеты в UI → моргание; канал она не разгружала). Reassembly чанков идёт на
+			// другой характеристике, поэтому параллельный live-стрим ему не мешает.
+			return await readChunkedViaNotify<T>(char, totalLen);
 		}
 
 		// Small payload — direct JSON

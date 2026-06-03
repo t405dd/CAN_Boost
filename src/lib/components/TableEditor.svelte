@@ -20,6 +20,9 @@
 		colorGradient?: boolean;
 		gradientMin?: number;
 		gradientMax?: number;
+		/** Per-cell highlight intensity [-1..1]: >0 = increased (green), <0 = decreased (red),
+		 *  |value| = colour density. Indexed [row][col] like `data`. Used for live learning. */
+		highlight?: number[][];
 		resizable?: boolean;
 		minRows?: number;
 		maxRows?: number;
@@ -45,6 +48,7 @@
 		colorGradient = false,
 		gradientMin = 0,
 		gradientMax = 200,
+		highlight,
 		resizable = false,
 		minRows = 1,
 		maxRows = 16,
@@ -460,6 +464,15 @@
 		return gradientTextColor(val, gradientMin, gradientMax);
 	}
 
+	// Live-подсветка изменённой ячейки: зелёный (рост) / красный (падение); плотность = |интенсивность|.
+	function cellHighlightBg(row: number, col: number): string {
+		if (!highlight) return '';
+		const v = highlight[row]?.[col] ?? 0;
+		const a = Math.min(0.85, Math.abs(v));
+		if (a < 0.03) return '';
+		return v > 0 ? `rgba(34, 197, 94, ${a})` : `rgba(239, 68, 68, ${a})`;
+	}
+
 	function isBracketingCell(row: number, col: number): boolean {
 		if (!bracketingInfo) return false;
 		return bracketingInfo.cells.some(c => c.row === row && c.col === col);
@@ -602,6 +615,7 @@
 							{@const isEditing = editingCell?.row === dataRow && editingCell?.col === c}
 							{@const isCursor = cursorInfo !== null && cursorInfo.row === dataRow && cursorInfo.col === c}
 							{@const isBracketing = isBracketingCell(dataRow, c)}
+							{@const hlBg = cellHighlightBg(dataRow, c)}
 							<td class="p-0"
 								onmousedown={(e) => onCellMouseDown(dataRow, c, e)}
 								onmouseenter={() => onCellMouseEnter(dataRow, c)}>
@@ -618,8 +632,8 @@
 											{selected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/20' : 'border-[var(--color-dash-border)]/30'}
 											{isCursor ? 'ring-2 ring-[var(--color-dash-warn)] ring-inset' : ''}
 											{isBracketing && !selected ? 'ring-1 ring-[var(--color-dash-warn)]/50 ring-inset' : ''}"
-										style:background-color={!selected ? cellBg(dataRow, c) : ''}
-										style:color={!selected ? cellTextColor(dataRow, c) : ''}>
+										style:background-color={!selected ? (hlBg || cellBg(dataRow, c)) : ''}
+										style:color={!selected ? (hlBg ? '#ffffff' : cellTextColor(dataRow, c)) : ''}>
 										{fmt(data[dataRow]?.[c] ?? 0)}
 									</div>
 								{/if}
