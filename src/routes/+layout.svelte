@@ -9,6 +9,9 @@
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import { base } from '$app/paths';
 	import { version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
+	import { initDebugLog } from '$lib/stores/debug-log.svelte';
+
+	initDebugLog();   // перехват console.* в буфер (виден на стр. /logging) — для диагностики BLE на телефоне
 
 	interface Props { children: import('svelte').Snippet }
 	let { children }: Props = $props();

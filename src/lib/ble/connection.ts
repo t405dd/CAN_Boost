@@ -390,24 +390,56 @@ export function disconnect() {
 	setState('disconnected');
 }
 
-/** Get a cached characteristic or discover it */
+/** Get a cached characteristic or discover it.
+ *  УСТОЙЧИВО к Android: сразу после (ре)коннекта обнаружение сервисов/характеристик GATT
+ *  ещё может быть НЕ завершено — `getPrimaryService`/`getCharacteristic` бросают или сервис
+ *  отсутствует в карте (гонка connect-time discovery). Без ретраев это давало `null` → чтение
+ *  конфига молча проваливалось, НЕ выходя в эфир (в serial-логе прошивки READ не появлялся),
+ *  hydrate «ничего не грузил», хотя позже ручной тап той же характеристики работал.
+ *  Поэтому: при отсутствии сервиса — ре-дискаверим его на лету; getCharacteristic пробуем
+ *  несколько раз с нарастающей паузой. */
 export async function getCharacteristic(
 	serviceUuid: string,
-	charUuid: string
+	charUuid: string,
+	attempts = 4
 ): Promise<BluetoothRemoteGATTCharacteristic | null> {
 	const cached = connection.characteristics.get(charUuid);
 	if (cached) return cached;
 
-	const service = connection.services.get(serviceUuid);
-	if (!service) return null;
+	for (let i = 0; i < attempts; i++) {
+		if (!connection.server?.connected) return null;
 
-	try {
-		const char = await service.getCharacteristic(charUuid);
-		connection.characteristics.set(charUuid, char);
-		return char;
-	} catch {
-		return null;
+		// Сервис мог не попасть в карту, если connect-time discovery подвис/сбойнул (частое на Android).
+		// Пробуем обнаружить его по требованию.
+		let service = connection.services.get(serviceUuid);
+		if (!service) {
+			try {
+				service = await connection.server.getPrimaryService(serviceUuid);
+				connection.services.set(serviceUuid, service);
+			} catch {
+				service = undefined;
+			}
+		}
+
+		if (service) {
+			try {
+				const char = await service.getCharacteristic(charUuid);
+				connection.characteristics.set(charUuid, char);
+				if (i > 0) console.log(`[BLE] getCharacteristic ${charUuid.substring(0, 8)} ok after ${i + 1} attempts`);
+				return char;
+			} catch (e) {
+				// Android: характеристики сервиса ещё не обнаружены сразу после коннекта — ретраим.
+				console.warn(`[BLE] getCharacteristic ${charUuid.substring(0, 8)} attempt ${i + 1}/${attempts} failed:`, (e as Error)?.message ?? e);
+			}
+		} else {
+			console.warn(`[BLE] service ${serviceUuid.substring(0, 8)} not available (attempt ${i + 1}/${attempts})`);
+		}
+
+		await new Promise((r) => setTimeout(r, 250 * (i + 1)));   // 250→500→750мс
 	}
+
+	console.error(`[BLE] getCharacteristic ${charUuid.substring(0, 8)} FAILED после ${attempts} попыток`);
+	return null;
 }
 
 /** Read a characteristic value (queued to prevent concurrent GATT access) */

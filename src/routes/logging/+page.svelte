@@ -6,6 +6,7 @@
 		logState, restoreLog, startRecording, stopRecording, clearLog,
 		markEvent, shareLog, downloadLog
 	} from '$lib/stores/client-log.svelte';
+	import { debugLog, clearDebugLog, debugLogText } from '$lib/stores/debug-log.svelte';
 
 	let isConnected = $derived(bleState.status === 'connected');
 	let rate = $state(10);
@@ -73,6 +74,24 @@
 		if (!confirm(t('clog.clearConfirm'))) return;
 		await clearLog();
 		flash(t('clog.cleared'));
+	}
+
+	// --- Встроенный лог-вьюер (диагностика BLE на телефоне) ---
+	let showDebug = $state(false);
+	async function copyDebug() {
+		const text = debugLogText();
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(text);
+				flash(t('clog.dbgCopied'));
+				return;
+			}
+		} catch { /* fallthrough to share */ }
+		try {
+			const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+			if (nav.share) { await nav.share({ text }); return; }
+		} catch { /* ignore */ }
+		flash(t('clog.dbgCopyFail'));
 	}
 
 	// Compact live preview of key boost values (enum ids from protocol.ts).
@@ -204,5 +223,36 @@
 				{t('clog.clear')}
 			</button>
 		</div>
+	</section>
+
+	<!-- Встроенный лог-вьюер: console.* (BLE/hydrate) прямо на телефоне -->
+	<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+		<button class="w-full flex items-center justify-between p-3" onclick={() => showDebug = !showDebug}>
+			<span class="text-[11px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">
+				{t('clog.debugLog')} <span class="text-[var(--color-dash-text-dim)]/60">({debugLog.lines.length})</span>
+			</span>
+			<span class="text-xs text-[var(--color-dash-text-dim)]">{showDebug ? '−' : '+'}</span>
+		</button>
+		{#if showDebug}
+			<div class="px-3 pb-3 space-y-2">
+				<div class="flex items-center gap-2">
+					<button onclick={copyDebug}
+						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors">
+						{t('clog.dbgCopy')}
+					</button>
+					<button onclick={clearDebugLog}
+						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:bg-[var(--color-dash-border)] transition-colors">
+						{t('clog.clear')}
+					</button>
+				</div>
+				<div class="max-h-72 overflow-auto rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]/40 p-2">
+					{#if debugLog.lines.length === 0}
+						<div class="text-[11px] text-[var(--color-dash-text-dim)]">{t('clog.dbgEmpty')}</div>
+					{:else}
+						<pre class="text-[10px] leading-relaxed font-mono text-[var(--color-dash-text)] whitespace-pre-wrap break-all select-text">{debugLog.lines.join('\n')}</pre>
+					{/if}
+				</div>
+			</div>
+		{/if}
 	</section>
 </div>
