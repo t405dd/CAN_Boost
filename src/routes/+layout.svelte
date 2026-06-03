@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import '../app.css';
 	import { bleState, connect, disconnect, submitPin } from '$lib/stores/ble-connection.svelte';
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
@@ -18,13 +19,19 @@
 	// порядке (карты → boost_settings → co1 → подписи; большой chunked can_receive — последним).
 	// Страницы биндятся к сторам и не показывают дефолты как реальные данные. См. hydrate.svelte.ts.
 	$effect(() => {
-		if (bleState.status === 'connected') {
-			hydrateOnConnect();
-		} else {
-			// disconnected/reconnecting/connecting — чистим стора + in-flight промисы, чтобы следующий
-			// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.
-			resetHydration();
-		}
+		const status = bleState.status;   // ЕДИНСТВЕННАЯ зависимость эффекта
+		// hydrate/reset пишут стора (resetHydration делает epoch++ — это чтение+запись реактивного
+		// поля). Без untrack эти записи попали бы в зависимости эффекта → самоинвалидация →
+		// effect_update_depth_exceeded (бесконечный цикл, ломавший реактивность и hydrate).
+		untrack(() => {
+			if (status === 'connected') {
+				hydrateOnConnect();
+			} else {
+				// disconnected/reconnecting/connecting — чистим стора + in-flight промисы, чтобы следующий
+				// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.
+				resetHydration();
+			}
+		});
 	});
 
 	// Кнопка установки — только в браузере (с сайта), когда установка доступна
