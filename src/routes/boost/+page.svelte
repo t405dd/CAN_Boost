@@ -6,12 +6,13 @@
 	import { subscribeCharacteristic } from '$lib/ble/connection';
 	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
 	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
+	import { boostSettings, loadBoostSettings, defaultBoostSettings } from '$lib/stores/boost-settings.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, enumToFirmwareName, enumToPwaName } from '$lib/utils/param-mapping';
-	import { loadSignalLabels, getCacheSlotDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
+	import { getCacheSlotDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -23,11 +24,11 @@
 	];
 
 	// --- State ---
-	let settings = $state<BoostControllerSettings>(defaultSettings());
-	// Прочитаны ли настройки (boost_settings) с устройства в этой сессии. Пока false — UI показывает
-	// «читаю с устройства», а НЕ дефолты (иначе пользователь видит, напр., выключенный бустконтроллер,
-	// хотя на устройстве он включён — баг до чтения/при сбое chunked-чтения).
-	let settingsLoaded = $state(false);
+	// Редактируемая копия настроек. Источник истины — стор boostSettings (грузится централизованно
+	// в hydrate() на коннекте). Копию пересинхронит $effect по boostSettings.epoch (ниже). Пока стор
+	// не загружен — settingsLoaded=false и UI показывает «читаю с устройства», а НЕ дефолты.
+	let settings = $state<BoostControllerSettings>(defaultBoostSettings());
+	let settingsLoaded = $derived(boostSettings.loaded);
 	let targetTable = $state<BoostTable>(defaultTargetTable());
 	let corr1 = $state<BoostCorrectionTable>(defaultCorrTable());
 	let corr2 = $state<BoostCorrectionTable>(defaultCorrTable());
@@ -123,51 +124,6 @@
 		setTimeout(() => { statusMsg = ''; }, durationMs);
 	}
 
-	// --- Defaults ---
-	function defaultSettings(): BoostControllerSettings {
-		return {
-			enabled: false,
-			actuatorType: 0,
-			canId: 0x26A,
-			canByteOffset: 0,
-			canBigEndian: true,
-			canSendIntervalMs: 50,
-			kp: 2.0, ki: 0.5, kd: 0.3,
-			iWindupLimit: 50.0,
-			dFilterAlpha: 0.2,
-			knockThreshold_deg: 2.0,
-			knockReduction_pct: 15.0,
-			canTimeoutMs: 500.0,
-			rateLimitPctPerSec: 200.0,
-			learnEnabled: true,
-			learnRate: 0.05,
-			learnErrorThreshold: 5.0,
-			learnStabilityTimeMs: 2000.0,
-			mapSignalParam: 15,    // PARAM_CACHE_SLOT_0 = cache slot 0 (map). База cache-слотов = 15!
-			rpmSignalParam: 16,    // PARAM_CACHE_SLOT_1 = cache slot 1 (rpm)
-			tpsSignalParam: 18,    // PARAM_CACHE_SLOT_3 = cache slot 3 (tps)
-			knockSignalParam: 0,   // PARAM_NONE
-			corr1AxisParam: 0,
-			corr1YAxisParam: 0,
-			corr2AxisParam: 0,
-			corr2YAxisParam: 0,
-			learnKpRate: 0.05,
-			learnKdRate: 0.05,
-			kpMin: 0.1,
-			kpMax: 20.0,
-			kdMin: 0.0,
-			kdMax: 10.0,
-			oscillationThreshold: 3,
-			oscillationWindowMs: 1000.0,
-			persistentErrorTimeMs: 3000.0,
-			persistentErrorMinKpa: 3.0,
-			transientGain: 0.5,
-			dRpmFilterAlpha: 0.1,
-			phaseHysteresis: 1.1,
-			learnBiasRate: 0.05
-		};
-	}
-
 	function defaultBiasTable(): BoostTable {
 		const cols = 8, rows = 8;
 		const xAxis = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000];
@@ -228,10 +184,10 @@
 	let loaded = $state({ target: false, corr: false, learn: false, bias: false, delta: false });
 	let loadingSection = $state<string | null>(null);
 
+	// Перечитать настройки с устройства в общий стор. Редактируемую копию `settings` обновит
+	// $effect-синхронизатор по boostSettings.epoch (ниже). Используется и кнопкой «Восстановить из Flash».
 	async function loadSettings(): Promise<boolean> {
-		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
-		if (s) { settings = s; settingsLoaded = true; return true; }
-		return false;
+		return await loadBoostSettings();
 	}
 	// Перечитать таблицы открытой секции (после switch/copy карты — в т.ч. инициированного из шапки).
 	async function reloadOpenSectionTables() {
@@ -328,6 +284,7 @@
 		saving = true;
 		try {
 			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settings);
+			if (ok) boostSettings.value = $state.snapshot(settings);  // стор = то, что на устройстве (без бампа epoch → без переклона)
 			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
 			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
@@ -609,20 +566,10 @@
 
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
-			initialLoadDone = true;            // ставим сразу — не перезаходить в эффект во время async-чтений
-			// Только настройки сразу (быстро) — таблицы лениво по раскрытию секций.
+			initialLoadDone = true;
+			// Настройки/карты/подписи грузит централизованный hydrate() (см. +layout). Здесь — только
+			// ленивые таблицы текущей секции и подписка на live-дельты обучения.
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
-			settingsLoaded = false;            // показываем «читаю с устройства», пока не пришли реальные
-			// boost_settings — chunked-чтение; на Android иногда не доходит с первой попытки. Читаем
-			// с ретраями, пока не получим реальные настройки (chunked-transfer тоже ретраит внутри).
-			(async () => {
-				for (let i = 0; i < 3 && !settingsLoaded; i++) {
-					if (await loadSettings()) break;
-					await new Promise((r) => setTimeout(r, 300 * (i + 1)));
-				}
-			})();
-			if (!boostMaps.loaded) loadBoostMaps();   // обычно карты уже загрузила шапка (+layout) при connect
-			loadSignalLabels(); // Load CAN Receive config for human-readable names
 			if (activeSection) ensureSectionData(activeSection);
 			// Подписка на live-дельты обучения (приходят только во время калибровки).
 			if (!learnDeltaUnsub) {
@@ -632,9 +579,19 @@
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
-			settingsLoaded = false;
 			if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; }
 			clearBaselines();   // подсветка дельт не переживает разрыв связи
+		}
+	});
+
+	// Синхронизация редактируемой копии настроек из общего стора (грузится в hydrate()). Клонируем
+	// при каждом успешном чтении (epoch++). Несохранённые правки при перезагрузке/реконнекте затираются — ОК.
+	let lastSettingsEpoch = 0;
+	$effect(() => {
+		const e = boostSettings.epoch;
+		if (e !== lastSettingsEpoch) {
+			lastSettingsEpoch = e;
+			settings = $state.snapshot(boostSettings.value) as BoostControllerSettings;
 		}
 	});
 

@@ -12,7 +12,8 @@
 	import { allParamEntries, pwaNameToEnum } from '$lib/utils/param-mapping';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 	import { liveData } from '$lib/stores/live-data.svelte';
-	import { loadSignalLabels, getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
+	import { getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
+	import { co1Config, loadCo1Config, defaultCo1Settings } from '$lib/stores/co1-settings.svelte';
 
 	const TABLE_LABELS_KEYS = ['canTx.t1base', 'canTx.t2mult', 'canTx.t3trim', 'canTx.t4trim'] as const;
 	const TABLE_IDS = ['T1_Base', 'T2_Multiplier', 'T3_TrimX', 'T4_TrimX2'];
@@ -32,14 +33,11 @@
 	let saving = $state(false);
 	let statusMsg = $state('');
 
-	// --- CO1 Bus Settings ---
-	function defaultCo1Settings(): Co1Settings {
-		return { canId: 0x269, canByteOffset: 0, canBigEndian: true, canSendIntervalMs: 50 };
-	}
-	let co1Settings = $state<Co1Settings>(defaultCo1Settings());
+	// --- CO1 Bus Settings (источник истины — общий стор co1Config, грузится в hydrate() на коннекте) ---
+	let co1Settings = $state<Co1Settings>(defaultCo1Settings());   // редактируемая копия (синхронит $effect ниже)
 	let co1Loading = $state(false);
 	// Прочитаны ли настройки CO1 с устройства — пока false, не показываем дефолты (0x269 и т.п.) как реальные.
-	let co1Loaded = $state(false);
+	let co1Loaded = $derived(co1Config.loaded);
 	let co1Saving = $state(false);
 	let co1StatusMsg = $state('');
 	let co1CanIdHex = $state('269');
@@ -49,16 +47,12 @@
 		setTimeout(() => { co1StatusMsg = ''; }, durationMs);
 	}
 
+	// Перечитать настройки CO1 с устройства в общий стор. Редактируемую копию обновит $effect-синхронизатор.
 	async function loadCo1Settings() {
 		co1Loading = true;
 		try {
-			const data = await readJsonConfig<Co1Settings>(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS);
-			if (data) {
-				co1Settings = data;
-				co1CanIdHex = data.canId.toString(16).toUpperCase();
-				co1Loaded = true;
-				showCo1Status(t('logging.loaded'));
-			}
+			const ok = await loadCo1Config();
+			showCo1Status(ok ? t('logging.loaded') : t('canRx.loadFailed'));
 		} catch (e) {
 			showCo1Status(t('canRx.loadFailed') + ': ' + (e as Error).message);
 		} finally {
@@ -71,6 +65,7 @@
 		try {
 			co1Settings.canId = parseInt(co1CanIdHex, 16) || 0x269;
 			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS, co1Settings);
+			if (ok) co1Config.value = $state.snapshot(co1Settings);   // стор = то, что на устройстве
 			showCo1Status(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
 			showCo1Status(t('canRx.saveFailed') + ': ' + (e as Error).message);
@@ -216,14 +211,24 @@
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
-			co1Loaded = false;          // показываем «читаю с устройства», пока не пришли реальные настройки CO1
+			// Настройки CO1 и подписи грузит централизованный hydrate() (см. +layout). Здесь — только
+			// таблицы CAN-выхода (большой конфиг, нужен лишь на этой странице).
 			loadConfig();
-			loadCo1Settings();
-			loadSignalLabels(); // Load CAN Receive config for human-readable names
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
-			co1Loaded = false;
+		}
+	});
+
+	// Синхронизация редактируемой копии CO1 из общего стора (грузится в hydrate()). Клонируем при
+	// каждом успешном чтении (epoch++); также обновляем hex-поле CAN ID.
+	let lastCo1Epoch = 0;
+	$effect(() => {
+		const e = co1Config.epoch;
+		if (e !== lastCo1Epoch) {
+			lastCo1Epoch = e;
+			co1Settings = $state.snapshot(co1Config.value) as Co1Settings;
+			co1CanIdHex = co1Config.value.canId.toString(16).toUpperCase();
 		}
 	});
 </script>

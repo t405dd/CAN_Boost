@@ -2,8 +2,8 @@
 	import '../app.css';
 	import { bleState, connect, disconnect, submitPin } from '$lib/stores/ble-connection.svelte';
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
-	import { loadSignalLabels, resetSignalLabels } from '$lib/stores/signal-labels.svelte';
-	import { boostMaps, ensureBoostMapsLoaded, setActiveBoostMap, resetBoostMaps } from '$lib/stores/boost-maps.svelte';
+	import { boostMaps, setActiveBoostMap } from '$lib/stores/boost-maps.svelte';
+	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import { base } from '$app/paths';
@@ -14,19 +14,14 @@
 	let menuOpen = $state(false);
 	let pinInput = $state('');
 
-	// При подключении подгружаем подписи сигналов (CAN Receive config),
-	// чтобы оси таблиц, пикер и живые данные показывали понятные имена (RPM/MAP/…), а не CACHE0.
+	// Единая гидрация при подключении: один оркестратор грузит все «лёгкие» конфиги в правильном
+	// порядке (карты → boost_settings → co1 → подписи; большой chunked can_receive — последним).
+	// Страницы биндятся к сторам и не показывают дефолты как реальные данные. См. hydrate.svelte.ts.
 	$effect(() => {
 		if (bleState.status === 'connected') {
-			// ПОРЯДОК ВАЖЕН. BLE-очередь строго последовательная (один GATT-op за раз), а подписи
-			// сигналов (CHR_CAN_RECEIVE) — большой chunked-read, на Android держит очередь несколько
-			// секунд. Карты буста — мелкое прямое чтение (~200 Б), от него зависит сквозной селектор.
-			// Поэтому грузим карты ПЕРВЫМИ, и только после — подписи (иначе селектор висит в спиннере
-			// всё время, пока тянется can_receive). См. диагностику HOL-блокировки.
-			ensureBoostMapsLoaded().finally(() => loadSignalLabels());
+			hydrateOnConnect();
 		} else if (bleState.status === 'disconnected') {
-			resetBoostMaps();
-			resetSignalLabels();
+			resetHydration();
 		}
 	});
 
