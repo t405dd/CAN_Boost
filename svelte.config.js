@@ -16,6 +16,12 @@ const config = {
 		// BASE_PATH задаётся в CI; локально/при пустом значении — корень.
 		paths: {
 			base: process.env.BASE_PATH ?? ''
+		},
+		// Идентификатор сборки (виден в шапке/меню PWA через `version` из $app/environment).
+		// Дата-время сборки в UTC, напр. "2026-06-03 15:55 UTC" — по нему опознаём, какая
+		// сборка реально загружена на устройстве (ключ для отлова залипшего кэша).
+		version: {
+			name: process.env.BUILD_VERSION ?? new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 		}
 	}
 };

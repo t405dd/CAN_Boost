@@ -385,6 +385,7 @@ export default {
 	'pin.submit': 'Подключить',
 	'pwa.install': 'Установить',
 	'pwa.iosHint': 'iOS: откройте в Bluefy, затем Поделиться → На экран «Домой»',
+	'pwa.buildVersion': 'Версия сборки',
 
 	// OTA обновление прошивки
 	'ota.title': 'Обновление прошивки (BLE)',

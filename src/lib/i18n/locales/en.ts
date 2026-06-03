@@ -385,6 +385,7 @@ export default {
 	'pin.submit': 'Connect',
 	'pwa.install': 'Install',
 	'pwa.iosHint': 'iOS: open in Bluefy, then Share → Add to Home Screen',
+	'pwa.buildVersion': 'Build version',
 
 	// OTA Firmware Update
 	'ota.title': 'Firmware Update (BLE)',

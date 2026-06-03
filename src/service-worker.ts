@@ -3,40 +3,30 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-// Service worker для офлайн-работы MS3 CAN BC PWA.
-// Предкэширует всё приложение (JS/CSS) + статику (manifest, иконки, predefined_signals.json)
-// при установке. После первой загрузки приложение полностью работает без интернета.
-// SvelteKit автоматически регистрирует этот файл в продакшен-сборке.
-
-import { base, build, files, version, prerendered } from '$service-worker';
+// NETWORK-ONLY service worker. Приложение остаётся устанавливаемым PWA (манифест + этот SW
+// с fetch-обработчиком), НО НИЧЕГО НЕ КЭШИРУЕТ — каждый запрос идёт прямо в сеть.
+//
+// Почему так: офлайн-precache залипал на Android — установленный PWA крутил старый
+// закэшированный бандл (самообновление SW не доезжало) → приложение работало на устаревшем
+// коде. Для BLE-тюнера офлайн не нужен (телефон рядом с устройством), а гарантия «всегда
+// свежий код» важнее. Залипнуть теперь не на чем: кэша нет.
+//
+// При активации этот воркер дополнительно УДАЛЯЕТ ВСЕ старые кэши — то есть любое устройство,
+// которое подтянет этот SW при проверке обновления, очистит залипший бандл предыдущих версий.
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-const CACHE = `can-boost-${version}`;
-
-// Оболочка SPA: корень приложения с учётом base-path (на GitHub Pages — /<repo>/).
-const SHELL = `${base}/`;
-
-// Всё, что precache при установке: код приложения + статика + предрендеренные страницы + оболочка SPA.
-// Дедуп через Set: prerendered уже содержит оболочку (${base}/), а Cache.addAll падает с
-// InvalidStateError на дублирующихся запросах → установка SW проваливалась, новый SW не активировался
-// (браузер продолжал отдавать старую сборку).
-const PRECACHE = [...new Set([...build, ...files, ...prerendered, SHELL])];
-
-sw.addEventListener('install', (event) => {
-	event.waitUntil(
-		caches.open(CACHE)
-			.then((cache) => cache.addAll(PRECACHE))
-			.then(() => sw.skipWaiting())
-	);
+sw.addEventListener('install', () => {
+	// Сразу становимся активным, не ждём закрытия старых вкладок.
+	sw.skipWaiting();
 });
 
 sw.addEventListener('activate', (event) => {
 	event.waitUntil(
 		(async () => {
-			// Удаляем кэши прошлых версий
+			// Сносим ВСЕ кэши (в т.ч. старые can-boost-* со stale-бандлами).
 			for (const key of await caches.keys()) {
-				if (key !== CACHE) await caches.delete(key);
+				await caches.delete(key);
 			}
 			await sw.clients.claim();
 		})()
@@ -44,49 +34,9 @@ sw.addEventListener('activate', (event) => {
 });
 
 sw.addEventListener('fetch', (event) => {
-	const req = event.request;
-	if (req.method !== 'GET') return;
-
-	const url = new URL(req.url);
-	if (url.origin !== location.origin) return; // не трогаем сторонние запросы
-
-	event.respondWith(
-		(async () => {
-			const cache = await caches.open(CACHE);
-
-			// Навигации (HTML-оболочка SPA) — NETWORK-FIRST. Оболочка ссылается на хэшированные
-			// JS-бандлы; если отдавать её cache-first, устройство может «залипнуть» на старой сборке,
-			// когда самообновление SW по любой причине не доехало (ровно этот баг наблюдался на Android:
-			// фиксы есть на сервере, а телефон крутит старый бандл). Онлайн — всегда свежая оболочка
-			// (значит и свежие хэши JS); офлайн — откат в кэш.
-			if (req.mode === 'navigate') {
-				try {
-					const res = await fetch(req);
-					if (res.status === 200) cache.put(SHELL, res.clone());
-					return res;
-				} catch {
-					const shell = (await cache.match(SHELL)) ?? (await cache.match(`${base}/index.html`));
-					if (shell) return shell;
-					throw new Error('offline: оболочка не закэширована');
-				}
-			}
-
-			// Хэшированные ассеты приложения (build/*) и статика — cache-first (неизменны в рамках version)
-			if (PRECACHE.includes(url.pathname)) {
-				const hit = await cache.match(url.pathname);
-				if (hit) return hit;
-			}
-
-			// Остальное — network-first с откатом в кэш (офлайн)
-			try {
-				const res = await fetch(req);
-				if (res.status === 200) cache.put(req, res.clone());
-				return res;
-			} catch {
-				const hit = await cache.match(req);
-				if (hit) return hit;
-				throw new Error('offline: ресурс не закэширован');
-			}
-		})()
-	);
+	// Только GET; остальное (BLE и т.п. — не сеть, но на всякий) не трогаем.
+	if (event.request.method !== 'GET') return;
+	// NETWORK-ONLY: всегда из сети, ничего не кэшируем. fetch-обработчик присутствует →
+	// Chrome считает приложение устанавливаемым PWA.
+	event.respondWith(fetch(event.request));
 });

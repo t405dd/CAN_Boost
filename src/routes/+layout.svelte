@@ -8,6 +8,7 @@
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import { base } from '$app/paths';
+	import { version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
 
 	interface Props { children: import('svelte').Snippet }
 	let { children }: Props = $props();
@@ -91,7 +92,10 @@
 			</svg>
 		</button>
 
-		<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">MS3 CAN BC</span>
+		<div class="flex flex-col items-center leading-none">
+			<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">MS3 CAN BC</span>
+			<span class="text-[9px] text-[var(--color-dash-text-dim)] tracking-wide mt-0.5" title={t('pwa.buildVersion')}>v{version}</span>
+		</div>
 
 		<div class="flex items-center gap-2">
 			{#if showInstall}
@@ -183,6 +187,11 @@
 						{t(item.key)}
 					</a>
 				{/each}
+				<!-- Build version (для опознания загруженной сборки PWA) -->
+				<div class="px-4 py-3 border-t border-[var(--color-dash-border)]">
+					<div class="text-[10px] text-[var(--color-dash-text-dim)] uppercase tracking-wider">{t('pwa.buildVersion')}</div>
+					<div class="text-xs font-mono text-[var(--color-dash-accent)] mt-0.5 select-text">v{version}</div>
+				</div>
 				<!-- Language switcher -->
 				<div class="p-4 border-t border-[var(--color-dash-border)]">
 					<div class="flex items-center gap-2">
