@@ -25,7 +25,7 @@
 		// effect_update_depth_exceeded (бесконечный цикл, ломавший реактивность и hydrate).
 		untrack(() => {
 			if (status === 'connected') {
-				hydrateOnConnect();
+				hydrateOnConnect().catch((e) => console.error('[hydrate] аварийно прервана:', e));
 			} else {
 				// disconnected/reconnecting/connecting — чистим стора + in-flight промисы, чтобы следующий
 				// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.

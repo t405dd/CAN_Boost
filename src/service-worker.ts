@@ -54,7 +54,24 @@ sw.addEventListener('fetch', (event) => {
 		(async () => {
 			const cache = await caches.open(CACHE);
 
-			// Статические ассеты приложения — cache-first (они неизменны в рамках version)
+			// Навигации (HTML-оболочка SPA) — NETWORK-FIRST. Оболочка ссылается на хэшированные
+			// JS-бандлы; если отдавать её cache-first, устройство может «залипнуть» на старой сборке,
+			// когда самообновление SW по любой причине не доехало (ровно этот баг наблюдался на Android:
+			// фиксы есть на сервере, а телефон крутит старый бандл). Онлайн — всегда свежая оболочка
+			// (значит и свежие хэши JS); офлайн — откат в кэш.
+			if (req.mode === 'navigate') {
+				try {
+					const res = await fetch(req);
+					if (res.status === 200) cache.put(SHELL, res.clone());
+					return res;
+				} catch {
+					const shell = (await cache.match(SHELL)) ?? (await cache.match(`${base}/index.html`));
+					if (shell) return shell;
+					throw new Error('offline: оболочка не закэширована');
+				}
+			}
+
+			// Хэшированные ассеты приложения (build/*) и статика — cache-first (неизменны в рамках version)
 			if (PRECACHE.includes(url.pathname)) {
 				const hit = await cache.match(url.pathname);
 				if (hit) return hit;
@@ -68,11 +85,6 @@ sw.addEventListener('fetch', (event) => {
 			} catch {
 				const hit = await cache.match(req);
 				if (hit) return hit;
-				// Навигация (SPA) офлайн → отдаём кэшированную оболочку
-				if (req.mode === 'navigate') {
-					const shell = (await cache.match(SHELL)) ?? (await cache.match(`${base}/index.html`));
-					if (shell) return shell;
-				}
 				throw new Error('offline: ресурс не закэширован');
 			}
 		})()
