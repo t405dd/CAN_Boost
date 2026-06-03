@@ -289,28 +289,6 @@
 		}
 	}
 
-	// Кнопка «Загрузить с устройства»: освежает настройки + всё уже загруженное
-	// (то, что пользователь видел), плюс текущую открытую секцию. Несмотренные
-	// секции остаются ленивыми.
-	async function loadAll() {
-		loading = true;
-		statusMsg = '';
-		try {
-			await loadSettings();
-			await loadBoostMaps();
-			if (loaded.target) await loadTarget();
-			if (loaded.corr) await loadCorr();
-			if (loaded.learn) await loadLearn();
-			if (loaded.bias) await loadBias();
-			if (loaded.delta) await loadDelta();
-			if (activeSection) await ensureSectionData(activeSection);
-			showStatus(t('logging.loaded'));
-		} catch (e) {
-			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
-		} finally {
-			loading = false;
-		}
-	}
 
 	// После калибровки — освежить настройки и обученные таблицы (если уже открыты).
 	async function reloadAfterCalibration() {
@@ -319,6 +297,27 @@
 		if (loaded.bias) await loadBias();
 		if (loaded.delta) await loadDelta();
 	}
+
+	// --- «Восстановить из Flash»: перечитать данные секции с устройства, затерев несохранённые правки.
+	//     Рядом с каждой кнопкой «Сохранить на устройство». ---
+	async function restoreFromFlash(loadFn: () => Promise<unknown>) {
+		loading = true;
+		statusMsg = '';
+		try {
+			await loadFn();
+			showStatus(t('common.restoredFromFlash'));
+		} catch (e) {
+			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
+		} finally {
+			loading = false;
+		}
+	}
+	const restoreSettings = () => restoreFromFlash(loadSettings);
+	const restoreTarget   = () => restoreFromFlash(loadTarget);
+	const restoreCorr     = () => restoreFromFlash(loadCorr);
+	const restoreBias     = () => restoreFromFlash(loadBias);
+	const restoreDelta    = () => restoreFromFlash(loadDelta);
+	const restoreMaps     = () => restoreFromFlash(loadBoostMaps);
 
 	async function saveSettings() {
 		saving = true;
@@ -642,12 +641,17 @@
 	{#if bleState.status !== 'connected'}
 		<ConnectPrompt />
 	{:else}
-		<!-- Action bar -->
-		<div class="flex items-center gap-2 flex-wrap">
-			<button onclick={loadAll} disabled={loading}
-				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors disabled:opacity-40">
-				{loading ? t('common.loading') : t('common.loadFromDevice')}
+		<!-- Сниппет «Восстановить из Flash»: ставится рядом с каждой кнопкой «Сохранить на устройство»
+		     (кнопки inline-block → встают в ряд). Перечитывает секцию с устройства, затирая правки. -->
+		{#snippet restoreBtn(onRestore: () => void)}
+			<button onclick={onRestore} disabled={saving || loading}
+				class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-border)]/40 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] hover:bg-[var(--color-dash-border)]/60 transition-colors disabled:opacity-40">
+				{loading ? t('common.loading') : t('common.restoreFromFlash')}
 			</button>
+		{/snippet}
+
+		<!-- Action bar (статус + индикатор загрузки секции) -->
+		<div class="flex items-center gap-2 flex-wrap empty:hidden">
 			{#if loadingSection}
 				<span class="text-xs text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
 					<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
@@ -702,6 +706,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{boostMaps.switching ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreMaps)}
 				</div>
 				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
 			{/if}
@@ -753,6 +758,7 @@
 					class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 					{saving ? t('common.saving') : t('common.saveToDevice')}
 				</button>
+				{@render restoreBtn(restoreSettings)}
 			</div>
 
 			<div class="flex items-center gap-3 flex-wrap">
@@ -869,6 +875,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreSettings)}
 				</div>
 			{/if}
 		</section>
@@ -904,6 +911,7 @@
 						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreTarget)}
 				</div>
 			{/if}
 		</section>
@@ -959,6 +967,7 @@
 						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreCorr)}
 				</div>
 			{/if}
 		</section>
@@ -1014,6 +1023,7 @@
 						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreCorr)}
 				</div>
 			{/if}
 		</section>
@@ -1057,6 +1067,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreSettings)}
 				</div>
 			{/if}
 		</section>
@@ -1096,6 +1107,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreSettings)}
 				</div>
 			{/if}
 		</section>
@@ -1208,6 +1220,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreSettings)}
 				</div>
 			{/if}
 		</section>
@@ -1322,6 +1335,7 @@
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
+					{@render restoreBtn(restoreBias)}
 				</div>
 			{/if}
 		</section>
@@ -1370,10 +1384,12 @@
 							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 							{saving ? t('common.saving') : t('common.saveToDevice')}
 						</button>
+						{@render restoreBtn(restoreDelta)}
 						<button onclick={saveSettings} disabled={saving}
 							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 							{t('boost.savePhaseSettings')}
 						</button>
+						{@render restoreBtn(restoreSettings)}
 					</div>
 				</div>
 			{/if}

@@ -47,6 +47,8 @@ export default {
 	'common.loading': 'Loading...',
 	'common.loadFromDevice': 'Load from device',
 	'common.saveToDevice': 'Save to device',
+	'common.restoreFromFlash': 'Restore from Flash',
+	'common.restoredFromFlash': 'Restored from device',
 	'common.saving': 'Saving...',
 	'common.saved': 'Saved',
 	'common.error': 'Error',
