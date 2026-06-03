@@ -416,6 +416,7 @@ export default {
 	'boost.title': 'Smart Boost Controller',
 	'boost.maps': 'Boost Maps',
 	'boost.mapActive': 'active',
+	'boost.mapEditHint': 'Switch maps in the top bar. Editing active map:',
 	'boost.mapName': 'Map name',
 	'boost.mapSwitched': 'Map switched',
 	'boost.mapsHint': 'Tap a map to make it active — it switches and saves instantly, and opens for editing. Per-map: target table, corrections, overboost limit. Shared: BIAS, Ki/Kp/Kd learning, PID gains.',

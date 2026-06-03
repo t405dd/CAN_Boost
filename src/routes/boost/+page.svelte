@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP, CHR_BOOST_MAPS, CHR_BOOST_LEARN_DELTA,
+	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP, CHR_BOOST_LEARN_DELTA,
 		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
 	import { subscribeCharacteristic } from '$lib/ble/connection';
-	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables, BoostMapMeta, BoostMapsState } from '$lib/types/config';
+	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
+	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
@@ -30,11 +31,9 @@
 	let biasTable = $state<BoostTable>(defaultBiasTable());
 	let deltaMapTable = $state<BoostCorrectionTable>(defaultDeltaMapTable());
 
-	// --- Карты буста (4 переключаемые) ---
-	let mapsMeta = $state<BoostMapMeta[]>(defaultMapsMeta());
-	let activeMap = $state(0);
-	let editMap = $state(0);          // слот, который адресуют target/corr (следует за active)
-	let mapSaving = $state(false);
+	// --- Карты буста: состояние в общем сторе $lib/stores/boost-maps (шарится с шапкой PWA). ---
+	// Плоская (НЕ $state) переменная: $effect тогда зависит только от boostMaps.reloadEpoch (без самопетли).
+	let lastReloadEpoch = 0;   // отслеживаем boostMaps.reloadEpoch → перечитка таблиц после switch/copy
 
 	let loading = $state(false);
 	let saving = $state(false);
@@ -165,10 +164,6 @@
 		};
 	}
 
-	function defaultMapsMeta(): BoostMapMeta[] {
-		return Array.from({ length: 4 }, (_, i) => ({ name: `Map ${i + 1}`, overboostLimit_kPa: 250.0 }));
-	}
-
 	function defaultBiasTable(): BoostTable {
 		const cols = 8, rows = 8;
 		const xAxis = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000];
@@ -233,27 +228,9 @@
 		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
 		if (s) settings = s;
 	}
-	// Читает состояние карт; возвращает true, если устройство ещё выполняет switch/copy (busy).
-	async function loadMaps(): Promise<boolean> {
-		const m = await readJsonConfig<BoostMapsState>(SVC_BOOST, CHR_BOOST_MAPS);
-		if (m && Array.isArray(m.maps) && m.maps.length > 0) {
-			mapsMeta = m.maps;
-			activeMap = m.activeMap ?? 0;
-			editMap = m.editMap ?? activeMap;
-			return !!m.busy;
-		}
-		return false;
-	}
-
-	// switch/copy выполняются на устройстве отложенно (в loop(), не в BLE-колбэке). Ждём
-	// busy=false, затем перечитываем таблицы edit-слота. Опрос дешёвый (мелкий boost_maps read).
-	async function waitMapReadyThenReload() {
-		for (let i = 0; i < 40; i++) {           // до ~6с страховки
-			const busy = await loadMaps();
-			if (!busy) break;
-			await new Promise((r) => setTimeout(r, 150));
-		}
-		loaded.target = false;                    // target/corr теперь адресуют новый/обновлённый слот
+	// Перечитать таблицы открытой секции (после switch/copy карты — в т.ч. инициированного из шапки).
+	async function reloadOpenSectionTables() {
+		loaded.target = false;   // target/corr теперь адресуют новый/обновлённый слот
 		loaded.corr = false;
 		if (activeSection) await ensureSectionData(activeSection);
 	}
@@ -320,7 +297,7 @@
 		statusMsg = '';
 		try {
 			await loadSettings();
-			await loadMaps();
+			await loadBoostMaps();
 			if (loaded.target) await loadTarget();
 			if (loaded.corr) await loadCorr();
 			if (loaded.learn) await loadLearn();
@@ -355,58 +332,17 @@
 		}
 	}
 
-	// --- Карты буста ---
-	// Тап по кнопке карты = одно нажатие: сразу активна, персистится в контроллер,
-	// и та же карта открывается на редактирование (editMap следует за active).
-	async function setActiveMap(n: number) {
-		if (n === activeMap && n === editMap) return;
-		mapSaving = true;
-		statusMsg = '';
-		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { activeMap: n });
-			if (ok) {
-				await waitMapReadyThenReload();   // устройство переключает карту в loop(); ждём готовность
-				showStatus(t('boost.mapSwitched'));
-			} else {
-				showStatus(t('canRx.saveFailed'));
-			}
-		} catch (e) {
-			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
-		} finally {
-			mapSaving = false;
-		}
-	}
-
-	// Сохранить мету всех карт (имена + per-map overboost).
+	// --- Карты буста: всё через общий стор (boostMaps). Тап = одно нажатие: активна + персист + edit.
+	//     Перечитку открытой таблицы делает $effect по boostMaps.reloadEpoch (ниже) — работает и при
+	//     переключении из шапки PWA. Здесь — лишь тонкие обёртки со статусом/подтверждением. ---
 	async function saveMapsMeta() {
-		mapSaving = true;
-		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { maps: mapsMeta });
-			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
-		} catch (e) {
-			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
-		} finally {
-			mapSaving = false;
-		}
+		const ok = await saveBoostMapsMeta();
+		showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 	}
-
-	// Заполнить текущий edit-слот из другого слота (target+corr+overboost; имя не меняется).
 	async function copyMapFrom(src: number) {
 		if (!confirm(t('boost.fillFromConfirm'))) return;
-		mapSaving = true;
-		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { copy: { from: src, to: editMap } });
-			if (ok) {
-				await waitMapReadyThenReload();   // копирование идёт в loop(); ждём готовность
-				showStatus(t('canRx.savedOk'));
-			} else {
-				showStatus(t('canRx.saveFailed'));
-			}
-		} catch (e) {
-			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
-		} finally {
-			mapSaving = false;
-		}
+		const ok = await copyBoostMapFrom(src);
+		showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 	}
 
 	async function saveTargetTable() {
@@ -672,7 +608,7 @@
 			// Только настройки сразу (быстро) — таблицы лениво по раскрытию секций.
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 			loadSettings();
-			loadMaps();
+			if (!boostMaps.loaded) loadBoostMaps();   // обычно карты уже загрузила шапка (+layout) при connect
 			loadSignalLabels(); // Load CAN Receive config for human-readable names
 			if (activeSection) ensureSectionData(activeSection);
 			// Подписка на live-дельты обучения (приходят только во время калибровки).
@@ -686,6 +622,16 @@
 			initialLoadDone = false;
 			if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; }
 			clearBaselines();   // подсветка дельт не переживает разрыв связи
+		}
+	});
+
+	// Карта переключена/скопирована где угодно (в т.ч. из шапки PWA) → стор бампает reloadEpoch.
+	// Перечитываем открытую таблицу edit-слота. Гард по lastReloadEpoch → без лишних перезагрузок.
+	$effect(() => {
+		const e = boostMaps.reloadEpoch;
+		if (e !== lastReloadEpoch) {
+			lastReloadEpoch = e;
+			reloadOpenSectionTables();
 		}
 	});
 </script>
@@ -713,38 +659,31 @@
 			{/if}
 		</div>
 
-		<!-- Карты буста: 4 переключаемые. Тап = одно нажатие (активна + персист + edit). -->
+		<!-- Карты буста: переключение — в шапке PWA (сквозное). Здесь — редактор активной карты. -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2">
 			<div class="flex items-center justify-between">
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.maps')}<HelpTip key="help.boost.maps" /></span>
-				{#if mapSaving}
+				{#if boostMaps.switching}
 					<span class="text-[10px] text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
 						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
 						{t('common.saving')}
 					</span>
 				{/if}
 			</div>
-			<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-				{#each mapsMeta as m, i}
-					<button onclick={() => setActiveMap(i)} disabled={mapSaving}
-						class="px-2 py-2 text-xs rounded border transition-colors disabled:opacity-40 {i === activeMap
-							? 'bg-[var(--color-dash-accent)]/20 border-[var(--color-dash-accent)] text-[var(--color-dash-accent)] font-bold'
-							: 'bg-[var(--color-dash-bg)] border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:border-[var(--color-dash-accent)]'}">
-						<span class="block truncate">{m.name || `Map ${i + 1}`}</span>
-						{#if i === activeMap}<span class="block text-[9px] uppercase tracking-wider">{t('boost.mapActive')}</span>{/if}
-					</button>
-				{/each}
-			</div>
-			{#if mapsMeta[editMap]}
+			<p class="text-[10px] text-[var(--color-dash-text-dim)]">
+				{t('boost.mapEditHint')}
+				<span class="text-[var(--color-dash-accent)] font-bold">{boostMaps.mapsMeta[boostMaps.activeMap]?.name || `Map ${boostMaps.activeMap + 1}`}</span>
+			</p>
+			{#if boostMaps.mapsMeta[boostMaps.editMap]}
 				<div class="flex items-end gap-2 flex-wrap pt-1">
 					<label class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase block">{t('boost.mapName')}</span>
-						<input type="text" maxlength="15" bind:value={mapsMeta[editMap].name}
+						<input type="text" maxlength="15" bind:value={boostMaps.mapsMeta[boostMaps.editMap].name}
 							class="w-28 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none" />
 					</label>
 					<label class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.overboostLimit')}<HelpTip key="help.boost.overboostLimit" /></span>
-						<input type="number" step="5" bind:value={mapsMeta[editMap].overboostLimit_kPa}
+						<input type="number" step="5" bind:value={boostMaps.mapsMeta[boostMaps.editMap].overboostLimit_kPa}
 							class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 					</label>
 					<label class="space-y-1">
@@ -752,16 +691,16 @@
 						<select value="" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v !== '') copyMapFrom(parseInt(v)); }}
 							class="block w-32 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none">
 							<option value="">{t('boost.fillFromSelect')}</option>
-							{#each mapsMeta as m, i}
-								{#if i !== editMap}
+							{#each boostMaps.mapsMeta as m, i}
+								{#if i !== boostMaps.editMap}
 									<option value={i}>{m.name || `Map ${i + 1}`}</option>
 								{/if}
 							{/each}
 						</select>
 					</label>
-					<button onclick={saveMapsMeta} disabled={mapSaving}
+					<button onclick={saveMapsMeta} disabled={boostMaps.switching}
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{mapSaving ? t('common.saving') : t('common.saveToDevice')}
+						{boostMaps.switching ? t('common.saving') : t('common.saveToDevice')}
 					</button>
 				</div>
 				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
@@ -943,9 +882,9 @@
 			{#if activeSection === 'target'}
 				<div class="px-3 pb-3 space-y-2">
 					<TableEditor
-						bind:data={targetTable.data}
-						bind:xAxisValues={targetTable.xAxisValues}
-						bind:yAxisValues={targetTable.yAxisValues}
+						data={targetTable.data}
+						xAxisValues={targetTable.xAxisValues}
+						yAxisValues={targetTable.yAxisValues}
 						numCols={targetTable.numCols}
 						numRows={targetTable.numRows}
 						decimals={0}
@@ -998,9 +937,9 @@
 						</label>
 					</div>
 					<TableEditor
-						bind:data={corr1.data}
-						bind:xAxisValues={corr1.xAxisValues}
-						bind:yAxisValues={corr1.yAxisValues}
+						data={corr1.data}
+						xAxisValues={corr1.xAxisValues}
+						yAxisValues={corr1.yAxisValues}
 						numCols={corr1.numCols}
 						numRows={corr1.numRows}
 						decimals={1}
@@ -1053,9 +992,9 @@
 						</label>
 					</div>
 					<TableEditor
-						bind:data={corr2.data}
-						bind:xAxisValues={corr2.xAxisValues}
-						bind:yAxisValues={corr2.yAxisValues}
+						data={corr2.data}
+						xAxisValues={corr2.xAxisValues}
+						yAxisValues={corr2.yAxisValues}
 						numCols={corr2.numCols}
 						numRows={corr2.numRows}
 						decimals={1}
