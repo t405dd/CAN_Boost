@@ -94,7 +94,7 @@
 				// Прошивка перемапила слоты кэша — обновляем метки сразу (живые данные)
 				// и перечитываем с устройства (пикеры/оси), чтобы пропали "cache*".
 				setCacheLabelsFromConfig(messages);
-				await loadSignalLabels();
+				await loadSignalLabels(true);   // force — слоты кэша перемапились, нужен свежий список
 			}
 			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {

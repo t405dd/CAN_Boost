@@ -19,8 +19,13 @@ export const signalLabels = $state<Record<number, SignalLabel>>({});
 let loaded = false;
 
 /** Load CAN Receive config and build cache slot → label mapping.
- *  Firmware assigns cache slots sequentially to enabled signals. */
-export async function loadSignalLabels(): Promise<void> {
+ *  Firmware assigns cache slots sequentially to enabled signals.
+ *  CHR_CAN_RECEIVE — большой chunked-read (на Android несколько секунд). Грузим один раз за сессию:
+ *  повторные вызовы с разных страниц/эффектов — no-op (force=false), чтобы не вставать в общую
+ *  последовательную BLE-очередь вторым тяжёлым чтением и не тормозить мелкие чтения (карты буста).
+ *  force=true — явное обновление после правки CAN Receive (слоты кэша перемапились). */
+export async function loadSignalLabels(force = false): Promise<void> {
+	if (loaded && !force) return;
 	try {
 		const config = await readJsonConfig<CanMessageConfig[]>(SVC_CAN_CONFIG, CHR_CAN_RECEIVE);
 		if (!config || config.length === 0) return;
@@ -106,4 +111,10 @@ export function getEnumParamShortName(enumVal: number): string {
 
 export function isLabelsLoaded(): boolean {
 	return loaded;
+}
+
+/** Сброс при разрыве связи: следующее подключение перечитает подписи (иначе guard в
+ *  loadSignalLabels не дал бы перезагрузиться на реконнекте). */
+export function resetSignalLabels(): void {
+	loaded = false;
 }
