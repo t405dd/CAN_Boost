@@ -41,6 +41,16 @@ export async function loadBoostMaps(): Promise<boolean> {
 	return false;
 }
 
+/** Загрузить карты с устройства с несколькими попытками. На Android первое чтение мелкого
+ *  конфига иногда теряется (гонка startNotifications) — повторяем, пока не загрузится. */
+export async function ensureBoostMapsLoaded(): Promise<void> {
+	for (let i = 0; i < 4 && !boostMaps.loaded; i++) {
+		await loadBoostMaps();
+		if (boostMaps.loaded) return;
+		await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+	}
+}
+
 // Дождаться завершения отложенного switch/copy на устройстве (busy=false).
 async function waitMapsReady(): Promise<void> {
 	for (let i = 0; i < 40; i++) {           // до ~6с страховки
@@ -59,6 +69,11 @@ export async function setActiveBoostMap(n: number): Promise<void> {
 	try {
 		const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_MAPS, { activeMap: n });
 		if (ok) {
+			// Оптимистично двигаем подсветку сразу — на Android подтверждающее чтение может
+			// запоздать или потеряться, но запись на устройство уже прошла.
+			boostMaps.activeMap = n;
+			boostMaps.editMap = n;
+			boostMaps.loaded = true;
 			await waitMapsReady();
 			boostMaps.reloadEpoch++;   // /boost перечитает открытую таблицу нового слота
 		}

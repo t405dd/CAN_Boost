@@ -3,7 +3,7 @@
 	import { bleState, connect, disconnect, submitPin } from '$lib/stores/ble-connection.svelte';
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
 	import { loadSignalLabels } from '$lib/stores/signal-labels.svelte';
-	import { boostMaps, loadBoostMaps, setActiveBoostMap, resetBoostMaps } from '$lib/stores/boost-maps.svelte';
+	import { boostMaps, ensureBoostMapsLoaded, setActiveBoostMap, resetBoostMaps } from '$lib/stores/boost-maps.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import { base } from '$app/paths';
@@ -19,7 +19,7 @@
 	$effect(() => {
 		if (bleState.status === 'connected') {
 			loadSignalLabels();
-			loadBoostMaps();   // карты грузим один раз на уровне layout → сквозной селектор + страница /boost
+			ensureBoostMapsLoaded();   // карты грузим на уровне layout (с ретраями) → сквозной селектор + /boost
 		} else if (bleState.status === 'disconnected') {
 			resetBoostMaps();
 		}
@@ -135,19 +135,21 @@
 		<CanOutBar />
 	{/if}
 
-	<!-- Сквозной селектор карт буста: на всех страницах, переключение одним нажатием -->
-	{#if bleState.status === 'connected' && boostMaps.loaded}
+	<!-- Сквозной селектор карт буста: на всех страницах. Показываем сразу при подключении —
+	     имена/активная карта подтянутся, как только устройство ответит (на Android чтение мелкого
+	     конфига иногда задерживается, но сама полоса и переключение доступны без ожидания). -->
+	{#if bleState.status === 'connected'}
 		<div class="shrink-0 flex items-stretch gap-1 px-2 py-1 bg-[var(--color-dash-card)] border-b border-[var(--color-dash-border)]/50">
 			<span class="self-center text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)] pr-1 shrink-0">{t('boost.maps')}</span>
 			{#each boostMaps.mapsMeta as m, i}
 				<button onclick={() => setActiveBoostMap(i)} disabled={boostMaps.switching}
-					class="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border truncate transition-colors disabled:opacity-50 {i === boostMaps.activeMap
+					class="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border truncate transition-colors disabled:opacity-50 {boostMaps.loaded && i === boostMaps.activeMap
 						? 'bg-[var(--color-dash-accent)]/20 border-[var(--color-dash-accent)] text-[var(--color-dash-accent)] font-bold'
 						: 'bg-[var(--color-dash-bg)] border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:border-[var(--color-dash-accent)]'}">
 					{m.name || `Map ${i + 1}`}
 				</button>
 			{/each}
-			{#if boostMaps.switching}
+			{#if boostMaps.switching || !boostMaps.loaded}
 				<span class="self-center w-3 h-3 shrink-0 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
 			{/if}
 		</div>
