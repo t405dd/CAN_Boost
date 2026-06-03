@@ -38,6 +38,8 @@
 	}
 	let co1Settings = $state<Co1Settings>(defaultCo1Settings());
 	let co1Loading = $state(false);
+	// Прочитаны ли настройки CO1 с устройства — пока false, не показываем дефолты (0x269 и т.п.) как реальные.
+	let co1Loaded = $state(false);
 	let co1Saving = $state(false);
 	let co1StatusMsg = $state('');
 	let co1CanIdHex = $state('269');
@@ -54,6 +56,7 @@
 			if (data) {
 				co1Settings = data;
 				co1CanIdHex = data.canId.toString(16).toUpperCase();
+				co1Loaded = true;
 				showCo1Status(t('logging.loaded'));
 			}
 		} catch (e) {
@@ -212,13 +215,15 @@
 
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
+			initialLoadDone = true;
+			co1Loaded = false;          // показываем «читаю с устройства», пока не пришли реальные настройки CO1
 			loadConfig();
 			loadCo1Settings();
 			loadSignalLabels(); // Load CAN Receive config for human-readable names
-			initialLoadDone = true;
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
+			co1Loaded = false;
 		}
 	});
 </script>
@@ -247,6 +252,12 @@
 					<span class="text-xs text-[var(--color-dash-text-dim)]">{co1StatusMsg}</span>
 				{/if}
 			</div>
+			{#if !co1Loaded}
+				<div class="flex items-center gap-2 text-[11px] text-[var(--color-dash-text-dim)] py-1">
+					<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+					{t('common.readingDevice')}
+				</div>
+			{:else}
 			<div class="flex items-center gap-4 flex-wrap">
 				<!-- CAN ID -->
 				<div class="flex items-center gap-1.5">
@@ -279,6 +290,7 @@
 						class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
 				</label>
 			</div>
+			{/if}
 		</div>
 		<!-- Action bar -->
 		<div class="flex items-center gap-2 flex-wrap">

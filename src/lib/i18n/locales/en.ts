@@ -45,6 +45,7 @@ export default {
 
 	// Common
 	'common.loading': 'Loading...',
+	'common.readingDevice': 'Reading from device…',
 	'common.loadFromDevice': 'Load from device',
 	'common.saveToDevice': 'Save to device',
 	'common.restoreFromFlash': 'Restore from Flash',

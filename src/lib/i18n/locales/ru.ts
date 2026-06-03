@@ -45,6 +45,7 @@ export default {
 
 	// Общие
 	'common.loading': 'Загрузка...',
+	'common.readingDevice': 'Читаю с устройства…',
 	'common.loadFromDevice': 'Загрузить с устройства',
 	'common.saveToDevice': 'Сохранить на устройство',
 	'common.restoreFromFlash': 'Восстановить из Flash',

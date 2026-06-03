@@ -24,6 +24,10 @@
 
 	// --- State ---
 	let settings = $state<BoostControllerSettings>(defaultSettings());
+	// Прочитаны ли настройки (boost_settings) с устройства в этой сессии. Пока false — UI показывает
+	// «читаю с устройства», а НЕ дефолты (иначе пользователь видит, напр., выключенный бустконтроллер,
+	// хотя на устройстве он включён — баг до чтения/при сбое chunked-чтения).
+	let settingsLoaded = $state(false);
 	let targetTable = $state<BoostTable>(defaultTargetTable());
 	let corr1 = $state<BoostCorrectionTable>(defaultCorrTable());
 	let corr2 = $state<BoostCorrectionTable>(defaultCorrTable());
@@ -224,9 +228,10 @@
 	let loaded = $state({ target: false, corr: false, learn: false, bias: false, delta: false });
 	let loadingSection = $state<string | null>(null);
 
-	async function loadSettings() {
+	async function loadSettings(): Promise<boolean> {
 		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
-		if (s) settings = s;
+		if (s) { settings = s; settingsLoaded = true; return true; }
+		return false;
 	}
 	// Перечитать таблицы открытой секции (после switch/copy карты — в т.ч. инициированного из шапки).
 	async function reloadOpenSectionTables() {
@@ -604,9 +609,18 @@
 
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
+			initialLoadDone = true;            // ставим сразу — не перезаходить в эффект во время async-чтений
 			// Только настройки сразу (быстро) — таблицы лениво по раскрытию секций.
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
-			loadSettings();
+			settingsLoaded = false;            // показываем «читаю с устройства», пока не пришли реальные
+			// boost_settings — chunked-чтение; на Android иногда не доходит с первой попытки. Читаем
+			// с ретраями, пока не получим реальные настройки (chunked-transfer тоже ретраит внутри).
+			(async () => {
+				for (let i = 0; i < 3 && !settingsLoaded; i++) {
+					if (await loadSettings()) break;
+					await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+				}
+			})();
 			if (!boostMaps.loaded) loadBoostMaps();   // обычно карты уже загрузила шапка (+layout) при connect
 			loadSignalLabels(); // Load CAN Receive config for human-readable names
 			if (activeSection) ensureSectionData(activeSection);
@@ -615,10 +629,10 @@
 				subscribeCharacteristic(SVC_BOOST, CHR_BOOST_LEARN_DELTA, applyLearnDelta)
 					.then((u) => { learnDeltaUnsub = u; });
 			}
-			initialLoadDone = true;
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
+			settingsLoaded = false;
 			if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; }
 			clearBaselines();   // подсветка дельт не переживает разрыв связи
 		}
@@ -703,12 +717,22 @@
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('enable')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
 					{t('boost.enable')}<HelpTip key="help.boost.enable" />
-					{#if settings.enabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+					{#if !settingsLoaded}
+						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin" title={t('common.readingDevice')}></span>
+					{:else if settings.enabled}
+						<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>
+					{/if}
 				</span>
 				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'enable' ? '−' : '+'}</span>
 			</button>
 			{#if activeSection === 'enable'}
 				<div class="px-3 pb-3 space-y-3">
+					{#if !settingsLoaded}
+						<div class="flex items-center gap-2 text-[11px] text-[var(--color-dash-text-dim)] py-2">
+							<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+							{t('common.readingDevice')}
+						</div>
+					{:else}
 					<div class="flex items-center justify-between">
 						<label class="flex items-center gap-2 cursor-pointer">
 							<input type="checkbox" bind:checked={settings.enabled} class="accent-[var(--color-dash-accent)]" />
@@ -767,6 +791,7 @@
 						class="w-16 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
 				</label>
 			</div>
+				{/if}
 				</div>
 			{/if}
 		</section>

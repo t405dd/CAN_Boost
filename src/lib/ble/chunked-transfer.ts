@@ -19,6 +19,13 @@ function chunkedReadTimeout(expectedLen: number): number {
 	return Math.max(15000, 10000 + Math.ceil(expectedLen / 10000) * 1000);
 }
 
+// На Android Chrome нотификации часто не идут сразу после startNotifications() (CCCD регистрируется
+// с задержкой) — первый notify (header/чанк) теряется и chunked-чтение виснет в таймаут. Поэтому
+// ждём перед READ_REQ, а само chunked-чтение при провале повторяем. Это и есть причина, по которой
+// boost_settings/can_receive «не дочитывались» на телефоне и UI показывал дефолты.
+const CHUNKED_SUBSCRIBE_SETTLE_MS = 300;
+const CHUNKED_READ_ATTEMPTS = 2;
+
 /** Read a JSON config from a BLE characteristic (handles chunked if needed).
  *  Queued to prevent concurrent GATT access that crashes ESP32 NimBLE. */
 export async function readJsonConfig<T = unknown>(
@@ -34,33 +41,46 @@ export async function readJsonConfig<T = unknown>(
 
 		console.log(`[BLE Transfer] Reading ${charUuid.substring(0, 8)}...`);
 
-		const value = await char.readValue();
-		if (value.byteLength === 0) {
-			console.warn('[BLE Transfer] Empty response');
-			return null;
-		}
+		// Chunked-notify чтения на Android иногда теряют нотификацию → null. Повторяем chunked-путь
+		// до CHUNKED_READ_ATTEMPTS раз. Прямое (мелкое) чтение надёжно и возвращается сразу.
+		for (let attempt = 1; attempt <= CHUNKED_READ_ATTEMPTS; attempt++) {
+			const value = await char.readValue();
+			if (value.byteLength === 0) {
+				console.warn('[BLE Transfer] Empty response');
+				return null;
+			}
 
-		const firstByte = value.getUint8(0);
+			const firstByte = value.getUint8(0);
 
-		// If first byte is CHUNK_HEADER, data is too large for direct read
-		if (firstByte === BLE_CHUNK_HEADER && value.byteLength >= 5) {
-			const totalLen = value.getUint32(1, true);
-			console.log(`[BLE Transfer] Large config detected (${totalLen} bytes), using chunked read`);
-			// Live-данные НЕ ставим на паузу: прошивка их шлёт всё равно (пауза была лишь флагом,
-			// скрывавшим пакеты в UI → моргание; канал она не разгружала). Reassembly чанков идёт на
-			// другой характеристике, поэтому параллельный live-стрим ему не мешает.
-			return await readChunkedViaNotify<T>(char, totalLen);
-		}
+			// If first byte is CHUNK_HEADER, data is too large for direct read
+			if (firstByte === BLE_CHUNK_HEADER && value.byteLength >= 5) {
+				const totalLen = value.getUint32(1, true);
+				console.log(`[BLE Transfer] Large config (${totalLen} bytes), chunked read (attempt ${attempt}/${CHUNKED_READ_ATTEMPTS})`);
+				// Live-данные НЕ ставим на паузу: прошивка их шлёт всё равно (пауза была лишь флагом,
+				// скрывавшим пакеты в UI → моргание; канал она не разгружала). Reassembly чанков идёт на
+				// другой характеристике, поэтому параллельный live-стрим ему не мешает.
+				const result = await readChunkedViaNotify<T>(char, totalLen);
+				if (result !== null) return result;
+				if (attempt < CHUNKED_READ_ATTEMPTS) {
+					console.warn(`[BLE Transfer] Chunked read of ${charUuid.substring(0, 8)} returned null, retrying...`);
+					await new Promise((r) => setTimeout(r, 250));
+					continue;
+				}
+				console.error(`[BLE Transfer] Chunked read of ${charUuid.substring(0, 8)} failed after ${CHUNKED_READ_ATTEMPTS} attempts`);
+				return null;
+			}
 
-		// Small payload — direct JSON
-		const text = new TextDecoder().decode(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
-		console.log(`[BLE Transfer] Direct read: ${text.length} chars`);
-		try {
-			return JSON.parse(text) as T;
-		} catch (e) {
-			console.error('[BLE Transfer] JSON parse error:', e, 'Raw:', text.substring(0, 200));
-			return null;
+			// Small payload — direct JSON
+			const text = new TextDecoder().decode(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+			console.log(`[BLE Transfer] Direct read: ${text.length} chars`);
+			try {
+				return JSON.parse(text) as T;
+			} catch (e) {
+				console.error('[BLE Transfer] JSON parse error:', e, 'Raw:', text.substring(0, 200));
+				return null;
+			}
 		}
+		return null;
 	});
 }
 
@@ -139,6 +159,10 @@ async function readChunkedViaNotify<T>(
 		try {
 			char.addEventListener('characteristicvaluechanged', onNotification);
 			await char.startNotifications();
+
+			// Android: даём подписке (CCCD) реально зарегистрироваться, иначе прошивка успеет
+			// прислать header раньше, чем браузер начнёт слушать → потеря и таймаут.
+			await new Promise((r) => setTimeout(r, CHUNKED_SUBSCRIBE_SETTLE_MS));
 
 			// Send read request → firmware calls sendChunkedData() via notify
 			await char.writeValueWithoutResponse(new Uint8Array([BLE_CMD_READ_REQ]));
