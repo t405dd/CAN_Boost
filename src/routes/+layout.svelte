@@ -20,7 +20,9 @@
 	$effect(() => {
 		if (bleState.status === 'connected') {
 			hydrateOnConnect();
-		} else if (bleState.status === 'disconnected') {
+		} else {
+			// disconnected/reconnecting/connecting — чистим стора + in-flight промисы, чтобы следующий
+			// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.
 			resetHydration();
 		}
 	});

@@ -33,8 +33,9 @@ export function loadCo1Config(): Promise<boolean> {
 	return _inFlight;
 }
 
-/** Сброс при разрыве связи. */
+/** Сброс при разрыве связи (чистим in-flight промис — см. boost-settings). */
 export function resetCo1Config(): void {
+	_inFlight = null;
 	co1Config.value = defaultCo1Settings();
 	co1Config.loaded = false;
 	co1Config.epoch++;

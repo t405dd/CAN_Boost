@@ -567,9 +567,12 @@
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
-			// Настройки/карты/подписи грузит централизованный hydrate() (см. +layout). Здесь — только
-			// ленивые таблицы текущей секции и подписка на live-дельты обучения.
+			// Карты/настройки/подписи обычно грузит централизованный hydrate() (см. +layout). Здесь —
+			// фолбэк (если стор ещё не загружен — грузим сами; in-flight дедуп не даст двойного чтения),
+			// плюс ленивые таблицы текущей секции и подписка на live-дельты.
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
+			if (!boostSettings.loaded) loadBoostSettings();
+			if (!boostMaps.loaded) loadBoostMaps();
 			if (activeSection) ensureSectionData(activeSection);
 			// Подписка на live-дельты обучения (приходят только во время калибровки).
 			if (!learnDeltaUnsub) {

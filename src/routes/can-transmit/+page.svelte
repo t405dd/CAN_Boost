@@ -211,8 +211,9 @@
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
-			// Настройки CO1 и подписи грузит централизованный hydrate() (см. +layout). Здесь — только
-			// таблицы CAN-выхода (большой конфиг, нужен лишь на этой странице).
+			// Настройки CO1 обычно грузит централизованный hydrate() (см. +layout); здесь фолбэк
+			// (если стор ещё не загружен). Плюс таблицы CAN-выхода (большой конфиг, нужен лишь тут).
+			if (!co1Config.loaded) loadCo1Config();
 			loadConfig();
 		}
 		if (!isConnected) {

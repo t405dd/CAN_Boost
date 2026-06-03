@@ -16,21 +16,16 @@ async function loadWithRetry(fn: () => Promise<boolean>, attempts = 3): Promise<
 	}
 }
 
-let _running = false;
-
-/** Прочитать с устройства все «лёгкие» конфиги в правильном порядке. Идемпотентно (повторный вызов
- *  во время выполнения — no-op). Тяжёлые таблицы грузятся лениво по раскрытию секций на страницах. */
+/** Прочитать с устройства все «лёгкие» конфиги в правильном порядке. Вызывается на КАЖДЫЙ
+ *  'connected' (в т.ч. реконнект) — без guard'а _running, иначе залипший флаг блокировал бы чтения
+ *  на всех последующих подключениях (авто-реконнект идёт через статус 'reconnecting', а не
+ *  'disconnected', поэтому сброс не срабатывал). Дублирующиеся чтения гасит in-flight дедуп в
+ *  загрузчиках. Тяжёлые таблицы грузятся лениво по раскрытию секций на страницах. */
 export async function hydrateOnConnect(): Promise<void> {
-	if (_running) return;
-	_running = true;
-	try {
-		await ensureBoostMapsLoaded();          // мелкое прямое чтение — селектор карт во всех страницах
-		await loadWithRetry(loadBoostSettings); // Enable/актуатор/сигналы/PID (/boost)
-		await loadWithRetry(loadCo1Config);     // настройки CO1 (/can-transmit)
-		await loadSignalLabels();               // большой chunked can_receive — ПОСЛЕДНИМ
-	} finally {
-		_running = false;
-	}
+	await ensureBoostMapsLoaded();          // мелкое прямое чтение — селектор карт во всех страницах
+	await loadWithRetry(loadBoostSettings); // Enable/актуатор/сигналы/PID (/boost)
+	await loadWithRetry(loadCo1Config);     // настройки CO1 (/can-transmit)
+	await loadSignalLabels();               // большой chunked can_receive — ПОСЛЕДНИМ
 }
 
 /** Сброс всех сторов при разрыве связи. */

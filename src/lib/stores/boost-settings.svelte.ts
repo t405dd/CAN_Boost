@@ -77,8 +77,10 @@ export function loadBoostSettings(): Promise<boolean> {
 	return _inFlight;
 }
 
-/** Сброс при разрыве связи. */
+/** Сброс при разрыве связи. Чистим и in-flight промис, чтобы реконнект не переиспользовал
+ *  «зависшее» чтение от оборванного соединения. */
 export function resetBoostSettings(): void {
+	_inFlight = null;
 	boostSettings.value = defaultBoostSettings();
 	boostSettings.loaded = false;
 	boostSettings.epoch++;
