@@ -663,57 +663,6 @@
 			{/if}
 		</div>
 
-		<!-- Карты буста (аккордеон). Переключение — в шапке PWA (сквозное); здесь редактор активной карты. -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('maps')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1">
-					{t('boost.maps')}<HelpTip key="help.boost.maps" />
-					{#if boostMaps.switching}<span class="w-3 h-3 ml-1 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>{/if}
-				</span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'maps' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'maps'}
-				<div class="px-3 pb-3 space-y-2">
-					<p class="text-[10px] text-[var(--color-dash-text-dim)]">
-						{t('boost.mapEditHint')}
-						<span class="text-[var(--color-dash-accent)] font-bold">{boostMaps.mapsMeta[boostMaps.activeMap]?.name || `Map ${boostMaps.activeMap + 1}`}</span>
-					</p>
-					{#if boostMaps.mapsMeta[boostMaps.editMap]}
-						<div class="flex items-end gap-2 flex-wrap pt-1">
-					<label class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase block">{t('boost.mapName')}</span>
-						<input type="text" maxlength="15" bind:value={boostMaps.mapsMeta[boostMaps.editMap].name}
-							class="w-28 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none" />
-					</label>
-					<label class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.overboostLimit')}<HelpTip key="help.boost.overboostLimit" /></span>
-						<input type="number" step="5" bind:value={boostMaps.mapsMeta[boostMaps.editMap].overboostLimit_kPa}
-							class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-					</label>
-					<label class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.fillFrom')}<HelpTip key="help.boost.fillFrom" /></span>
-						<select value="" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v !== '') copyMapFrom(parseInt(v)); }}
-							class="block w-32 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none">
-							<option value="">{t('boost.fillFromSelect')}</option>
-							{#each boostMaps.mapsMeta as m, i}
-								{#if i !== boostMaps.editMap}
-									<option value={i}>{m.name || `Map ${i + 1}`}</option>
-								{/if}
-							{/each}
-						</select>
-					</label>
-					<button onclick={saveMapsMeta} disabled={boostMaps.switching}
-						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{boostMaps.switching ? t('common.saving') : t('common.saveToDevice')}
-					</button>
-					{@render restoreBtn(restoreMaps)}
-				</div>
-				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
-			{/if}
-			</div>
-		{/if}
-		</section>
-
 		<!-- Калибровка (обучение Ki/Kp/Kd + BIAS на лету) -->
 		<section class="rounded-lg border p-3 space-y-2 {calibrating ? 'bg-[var(--color-dash-warn)]/10 border-[var(--color-dash-warn)]/40' : 'bg-[var(--color-dash-card)] border-[var(--color-dash-border)]/50'}">
 			<div class="flex items-center justify-between">
@@ -820,6 +769,57 @@
 			</div>
 				</div>
 			{/if}
+		</section>
+
+		<!-- Карты буста (аккордеон). Переключение — в шапке PWA (сквозное); здесь редактор активной карты. -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('maps')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1">
+					{t('boost.maps')}<HelpTip key="help.boost.maps" />
+					{#if boostMaps.switching}<span class="w-3 h-3 ml-1 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>{/if}
+				</span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'maps' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'maps'}
+				<div class="px-3 pb-3 space-y-2">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">
+						{t('boost.mapEditHint')}
+						<span class="text-[var(--color-dash-accent)] font-bold">{boostMaps.mapsMeta[boostMaps.activeMap]?.name || `Map ${boostMaps.activeMap + 1}`}</span>
+					</p>
+					{#if boostMaps.mapsMeta[boostMaps.editMap]}
+						<div class="flex items-end gap-2 flex-wrap pt-1">
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase block">{t('boost.mapName')}</span>
+						<input type="text" maxlength="15" bind:value={boostMaps.mapsMeta[boostMaps.editMap].name}
+							class="w-28 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none" />
+					</label>
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.overboostLimit')}<HelpTip key="help.boost.overboostLimit" /></span>
+						<input type="number" step="5" bind:value={boostMaps.mapsMeta[boostMaps.editMap].overboostLimit_kPa}
+							class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+					</label>
+					<label class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.fillFrom')}<HelpTip key="help.boost.fillFrom" /></span>
+						<select value="" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v !== '') copyMapFrom(parseInt(v)); }}
+							class="block w-32 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none">
+							<option value="">{t('boost.fillFromSelect')}</option>
+							{#each boostMaps.mapsMeta as m, i}
+								{#if i !== boostMaps.editMap}
+									<option value={i}>{m.name || `Map ${i + 1}`}</option>
+								{/if}
+							{/each}
+						</select>
+					</label>
+					<button onclick={saveMapsMeta} disabled={boostMaps.switching}
+						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+						{boostMaps.switching ? t('common.saving') : t('common.saveToDevice')}
+					</button>
+					{@render restoreBtn(restoreMaps)}
+				</div>
+				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.mapsHint')}</p>
+			{/if}
+			</div>
+		{/if}
 		</section>
 
 		<!-- 2. Signal Sources -->
