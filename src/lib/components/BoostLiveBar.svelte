@@ -30,8 +30,6 @@
 
 {#if any}
 	<div class="shrink-0 flex items-center gap-3 px-3 py-1 bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 text-[10px] font-mono overflow-x-auto">
-		<span class="text-[var(--color-dash-text-dim)] uppercase tracking-wider shrink-0">{t('hdr.live')}</span>
-
 		<div class="flex items-center gap-1.5 shrink-0">
 			<span class="text-[var(--color-dash-text-dim)]">RPM</span>
 			<span class="text-[var(--color-dash-text)] font-bold tabular-nums">{rpm === undefined ? '—' : fmt(rpm, 0)}</span>
