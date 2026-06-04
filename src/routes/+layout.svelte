@@ -3,6 +3,7 @@
 	import '../app.css';
 	import { bleState, connect, disconnect, submitPin } from '$lib/stores/ble-connection.svelte';
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
+	import { pwaUpdate, checkForUpdate, applyUpdate } from '$lib/stores/pwa-update.svelte';
 	import { boostMaps, setActiveBoostMap } from '$lib/stores/boost-maps.svelte';
 	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
@@ -80,6 +81,21 @@
 			connect();
 		}
 	}
+
+	// Ручная проверка обновления (кнопка в меню). 'ready' → применяем сразу; 'fresh' → подтверждаем.
+	let updateMsg = $state('');
+	async function doCheckUpdate() {
+		updateMsg = '';
+		const r = await checkForUpdate();
+		if (r === 'ready' || pwaUpdate.updateReady) applyUpdate();
+		else if (r === 'fresh') {
+			updateMsg = t('pwa.upToDate');
+			setTimeout(() => { updateMsg = ''; }, 3000);
+		} else {
+			updateMsg = t('pwa.updateUnsupported');
+			setTimeout(() => { updateMsg = ''; }, 3000);
+		}
+	}
 </script>
 
 <div class="flex flex-col h-dvh bg-[var(--color-dash-bg)] no-select">
@@ -125,6 +141,15 @@
 			</button>
 		</div>
 	</header>
+
+	<!-- Доступно обновление PWA: применяется по кнопке (страница перезагрузится на новую сборку) -->
+	{#if pwaUpdate.updateReady}
+		<button onclick={applyUpdate}
+			class="shrink-0 w-full px-3 py-1.5 bg-[var(--color-dash-accent)]/15 border-b border-[var(--color-dash-accent)]/30
+				text-[11px] font-bold text-[var(--color-dash-accent)] text-center hover:bg-[var(--color-dash-accent)]/25 transition-colors">
+			{t('pwa.updateAvailable')} — {t('pwa.update')}
+		</button>
+	{/if}
 
 	<!-- iOS: установка только вручную -->
 	{#if showIosHint}
@@ -196,10 +221,24 @@
 						{t(item.key)}
 					</a>
 				{/each}
-				<!-- Build version (для опознания загруженной сборки PWA) -->
-				<div class="px-4 py-3 border-t border-[var(--color-dash-border)]">
-					<div class="text-[10px] text-[var(--color-dash-text-dim)] uppercase tracking-wider">{t('pwa.buildVersion')}</div>
-					<div class="text-xs font-mono text-[var(--color-dash-accent)] mt-0.5 select-text">v{version}</div>
+				<!-- Build version + ручная проверка обновления -->
+				<div class="px-4 py-3 border-t border-[var(--color-dash-border)] space-y-2">
+					<div>
+						<div class="text-[10px] text-[var(--color-dash-text-dim)] uppercase tracking-wider">{t('pwa.buildVersion')}</div>
+						<div class="text-xs font-mono text-[var(--color-dash-accent)] mt-0.5 select-text">v{version}</div>
+					</div>
+					{#if pwaUpdate.supported}
+						<button onclick={doCheckUpdate} disabled={pwaUpdate.checking}
+							class="w-full px-3 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50
+								{pwaUpdate.updateReady
+									? 'bg-[var(--color-dash-accent)] text-black'
+									: 'bg-[var(--color-dash-border)]/60 text-[var(--color-dash-text)] hover:bg-[var(--color-dash-border)]'}">
+							{pwaUpdate.checking ? t('pwa.checking') : pwaUpdate.updateReady ? t('pwa.update') : t('pwa.checkUpdate')}
+						</button>
+						{#if updateMsg}
+							<div class="text-[10px] text-[var(--color-dash-text-dim)] text-center">{updateMsg}</div>
+						{/if}
+					{/if}
 				</div>
 				<!-- Language switcher -->
 				<div class="p-4 border-t border-[var(--color-dash-border)]">

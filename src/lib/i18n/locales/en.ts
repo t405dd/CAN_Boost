@@ -394,6 +394,12 @@ export default {
 	'pwa.install': 'Install',
 	'pwa.iosHint': 'iOS: open in Bluefy, then Share → Add to Home Screen',
 	'pwa.buildVersion': 'Build version',
+	'pwa.checkUpdate': 'Check for update',
+	'pwa.checking': 'Checking…',
+	'pwa.update': 'Update',
+	'pwa.updateAvailable': 'Update available',
+	'pwa.upToDate': 'You have the latest version',
+	'pwa.updateUnsupported': 'Update unavailable',
 
 	// OTA Firmware Update
 	'ota.title': 'Firmware Update (BLE)',

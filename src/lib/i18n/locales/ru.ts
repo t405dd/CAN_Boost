@@ -394,6 +394,12 @@ export default {
 	'pwa.install': 'Установить',
 	'pwa.iosHint': 'iOS: откройте в Bluefy, затем Поделиться → На экран «Домой»',
 	'pwa.buildVersion': 'Версия сборки',
+	'pwa.checkUpdate': 'Проверить обновление',
+	'pwa.checking': 'Проверка…',
+	'pwa.update': 'Обновить',
+	'pwa.updateAvailable': 'Доступно обновление',
+	'pwa.upToDate': 'Установлена последняя версия',
+	'pwa.updateUnsupported': 'Обновление недоступно',
 
 	// OTA обновление прошивки
 	'ota.title': 'Обновление прошивки (BLE)',
