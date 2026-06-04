@@ -275,6 +275,8 @@ export default {
 
 	// Полоса исходящих CAN-данных в шапке
 	'hdr.canOut': 'CAN OUT',
+	'hdr.live': 'НАДДУВ',
+	'hdr.err': 'ОШ',
 	'hdr.stOff': 'выкл',
 	'hdr.stNoMap': 'нет данных MAP',
 	'hdr.stNoRpm': 'нет данных RPM',

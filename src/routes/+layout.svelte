@@ -7,6 +7,7 @@
 	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
+	import BoostLiveBar from '$lib/components/BoostLiveBar.svelte';
 	import { base } from '$app/paths';
 	import { version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
 	import { initDebugLog } from '$lib/stores/debug-log.svelte';
@@ -149,6 +150,11 @@
 	<!-- CAN OUT strip: what the device transmits (boost output + CO1) -->
 	{#if bleState.status === 'connected'}
 		<CanOutBar />
+	{/if}
+
+	<!-- Live boost strip: RPM / MAP / Error — всегда перед глазами на всех страницах -->
+	{#if bleState.status === 'connected'}
+		<BoostLiveBar />
 	{/if}
 
 	<!-- Сквозной селектор карт буста: на всех страницах. Показываем сразу при подключении —

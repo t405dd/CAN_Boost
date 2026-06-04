@@ -275,6 +275,8 @@ export default {
 
 	// Header CAN-out strip
 	'hdr.canOut': 'CAN OUT',
+	'hdr.live': 'BOOST',
+	'hdr.err': 'ERR',
 	'hdr.stOff': 'off',
 	'hdr.stNoMap': 'no MAP data',
 	'hdr.stNoRpm': 'no RPM data',
