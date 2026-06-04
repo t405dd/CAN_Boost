@@ -7,6 +7,10 @@
 // independent of BLE packet rate — convenient for plotting the learning process.
 
 import { liveData, getParamList } from './live-data.svelte';
+import { onLearnDelta, type LearnDelta } from './boost-learn-stream.svelte';
+import { readJsonConfig } from '$lib/ble/chunked-transfer';
+import { SVC_BOOST, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_TARGET } from '$lib/ble/uuids';
+import { bleState } from './ble-connection.svelte';
 
 // --- IndexedDB (minimal, no external dep) ----------------------------------
 const DB_NAME = 'canboost-log';
@@ -15,8 +19,14 @@ const STORE_ROWS = 'rows';   // autoIncrement: { t, seq, ev, v:number[] }
 const STORE_META = 'meta';   // keyPath 'id': { id:'session', startedAt, rateHz, columns }
 
 interface ColumnSpec { paramType: number; name: string; }
-interface RowRec { t: number; seq: number; ev: string; v: number[]; }
-interface MetaRec { id: 'session'; startedAt: number; rateHz: number; columns: ColumnSpec[]; }
+// kind 'lrn' = строка-корректировка обучения (param-колонки пустые, ev несёт текст правки).
+interface RowRec { t: number; seq: number; ev: string; v: number[]; kind?: 'lrn'; }
+// Снимок всех PID/наддувных таблиц в момент времени (как читаются с устройства).
+interface TablesSnapshot { ki?: unknown; kp?: unknown; kd?: unknown; bias?: unknown; target?: unknown; }
+interface MetaRec {
+	id: 'session'; startedAt: number; rateHz: number; columns: ColumnSpec[];
+	tablesStart?: TablesSnapshot | null; tablesEnd?: TablesSnapshot | null;
+}
 
 function idbAvailable(): boolean {
 	return typeof window !== 'undefined' && typeof indexedDB !== 'undefined';
@@ -61,7 +71,8 @@ export const logState = $state({
 	approxBytes: 0,
 	hasData: false,            // a session (current or restored) holds rows
 	lastError: '' as string,
-	capped: false              // hit MAX_ROWS — recording stopped
+	capped: false,             // hit MAX_ROWS — recording stopped
+	learnEvents: 0             // число пойманных корректировок обучения в текущей сессии
 });
 
 // Row data lives outside $state to avoid proxying tens of thousands of entries.
@@ -71,6 +82,49 @@ let pendingFlush: RowRec[] = [];
 let sampleTimer: ReturnType<typeof setInterval> | null = null;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let pendingEvent = '';
+
+// --- Снимки таблиц + поток корректировок обучения --------------------------
+let tablesStart: TablesSnapshot | null = null;
+let tablesEnd: TablesSnapshot | null = null;
+let learnUnsub: (() => void) | null = null;
+
+const LEARN_TABLE_NAME: Record<number, string> = { 0: 'ki', 1: 'kp', 2: 'kd', 3: 'bias' };
+
+/** Прочитать с устройства текущие PID/наддувные таблицы (best-effort; null-поля при сбое). */
+async function snapshotBoostTables(): Promise<TablesSnapshot | null> {
+	if (bleState.status !== 'connected') return null;
+	const snap: TablesSnapshot = {};
+	try {
+		const learn = await readJsonConfig<{ ki?: unknown; kp?: unknown; kd?: unknown }>(SVC_BOOST, CHR_BOOST_LEARN);
+		if (learn) { snap.ki = learn.ki ?? learn; snap.kp = learn.kp; snap.kd = learn.kd; }
+	} catch { /* пропускаем — таблица останется без поля */ }
+	try { snap.bias = await readJsonConfig(SVC_BOOST, CHR_BOOST_BIAS); } catch { /* skip */ }
+	try { snap.target = await readJsonConfig(SVC_BOOST, CHR_BOOST_TARGET); } catch { /* skip */ }
+	return snap;
+}
+
+/** Записать одну строку-корректировку обучения (приходит из общего стора learn-дельт). */
+function recordLearnDeltas(deltas: LearnDelta[]): void {
+	if (!logState.recording || deltas.length === 0) return;
+	// Формат токена: name[row:col]=value. Двоеточие (а не запятая) — чтобы не плодить
+	// CSV-кавычки внутри колонки event. Анализатор парсит ровно этот формат.
+	const parts = deltas.map((d) => {
+		const name = LEARN_TABLE_NAME[d.tableId] ?? `t${d.tableId}`;
+		return `${name}[${d.row}:${d.col}]=${formatNum(d.value)}`;
+	});
+	const rec: RowRec = {
+		t: Date.now() - logState.startedAt,
+		seq: liveData.sequence,
+		ev: 'LRN ' + parts.join(' '),
+		v: [],
+		kind: 'lrn'
+	};
+	rows.push(rec);
+	pendingFlush.push(rec);
+	logState.rowCount = rows.length;
+	logState.learnEvents += deltas.length;
+	logState.hasData = true;
+}
 
 const MAX_ROWS = 500_000;        // ~safety cap (≈8 h @ 20 Hz)
 const FLUSH_INTERVAL_MS = 1500;  // batch IDB writes
@@ -97,6 +151,8 @@ export async function restoreLog(): Promise<void> {
 			r.onerror = () => reject(r.error);
 		});
 		columnsSpec = meta.columns;
+		tablesStart = meta.tablesStart ?? null;
+		tablesEnd = meta.tablesEnd ?? null;
 		rows = loaded;
 		logState.startedAt = meta.startedAt;
 		logState.rateHz = meta.rateHz;
@@ -129,6 +185,11 @@ export async function startRecording(rateHz = 10): Promise<void> {
 	const periodMs = Math.max(20, Math.round(1000 / rateHz));
 	sampleTimer = setInterval(sampleTick, periodMs);
 	flushTimer = setInterval(() => { void flush(); }, FLUSH_INTERVAL_MS);
+
+	// Ловим корректировки обучения на ЛЮБОЙ странице (общий ref-counted стор).
+	if (!learnUnsub) learnUnsub = onLearnDelta(recordLearnDeltas);
+	// Снимок таблиц на старте (не блокируем запись — читаем в фоне через BLE-очередь).
+	void snapshotBoostTables().then((s) => { tablesStart = s; void writeMeta(); });
 }
 
 export async function stopRecording(): Promise<void> {
@@ -136,6 +197,10 @@ export async function stopRecording(): Promise<void> {
 	logState.recording = false;
 	if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
 	if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+	if (learnUnsub) { learnUnsub(); learnUnsub = null; }
+	// Снимок таблиц на стопе — чтобы видеть, что обучение изменило за сессию (diff со стартом).
+	tablesEnd = await snapshotBoostTables();
+	await writeMeta();
 	await flush();
 }
 
@@ -145,11 +210,14 @@ export async function clearLog(): Promise<void> {
 	columnsSpec = [];
 	pendingFlush = [];
 	pendingEvent = '';
+	tablesStart = null;
+	tablesEnd = null;
 	logState.rowCount = 0;
 	logState.hasData = false;
 	logState.approxBytes = 0;
 	logState.columns = [];
 	logState.capped = false;
+	logState.learnEvents = 0;
 	if (!idbAvailable()) return;
 	try {
 		const d = await db();
@@ -207,7 +275,9 @@ async function writeMeta(): Promise<void> {
 			id: 'session',
 			startedAt: logState.startedAt,
 			rateHz: logState.rateHz,
-			columns: columnsSpec
+			columns: columnsSpec,
+			tablesStart,
+			tablesEnd
 		};
 		tx.objectStore(STORE_META).put(meta);
 		await txDone(tx);
@@ -243,16 +313,22 @@ function csvCell(s: string): string {
 export function buildCsv(): string {
 	const header = ['t_ms', 'iso_time', 'seq', 'event', ...columnsSpec.map((c) => c.name)];
 	const lines: string[] = [header.map(csvCell).join(',')];
+	const blanks = columnsSpec.map(() => '');
 	for (const r of rows) {
 		const iso = new Date(logState.startedAt + r.t).toISOString();
-		const cells = [
-			String(r.t),
-			iso,
-			String(r.seq),
-			csvCell(r.ev ?? ''),
-			...r.v.map((x) => (Number.isFinite(x) ? formatNum(x) : ''))
-		];
+		// Строки-корректировки обучения (kind='lrn') несут текст в event, param-колонки пустые.
+		const params = r.kind === 'lrn'
+			? blanks
+			: r.v.map((x) => (Number.isFinite(x) ? formatNum(x) : ''));
+		const cells = [String(r.t), iso, String(r.seq), csvCell(r.ev ?? ''), ...params];
 		lines.push(cells.join(','));
+	}
+	// Снимки таблиц — закомментированным (# ...) блоком в конце файла. Анализатор читает обе строки;
+	// обычные CSV-парсеры строки с ведущим '#' игнорируют/отбрасывают как мусор.
+	if (tablesStart || tablesEnd) {
+		lines.push('# CANBOOST_TABLES v1');
+		if (tablesStart) lines.push('# TABLES_START ' + JSON.stringify(tablesStart));
+		if (tablesEnd) lines.push('# TABLES_END ' + JSON.stringify(tablesEnd));
 	}
 	return lines.join('\n');
 }

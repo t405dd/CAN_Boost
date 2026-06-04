@@ -172,6 +172,10 @@
 			</div>
 		</div>
 
+		{#if logState.learnEvents > 0}
+			<div class="text-[10px] text-[var(--color-dash-accent)]">{t('clog.learnCaptured')}: {logState.learnEvents}</div>
+		{/if}
+
 		{#if logState.capped}
 			<div class="text-[10px] text-[var(--color-dash-warn)]">{t('clog.capped')}</div>
 		{/if}

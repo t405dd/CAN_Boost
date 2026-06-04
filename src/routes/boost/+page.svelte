@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP, CHR_BOOST_LEARN_DELTA,
+	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP,
 		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
-	import { subscribeCharacteristic } from '$lib/ble/connection';
+	import { onLearnDelta, type LearnDelta } from '$lib/stores/boost-learn-stream.svelte';
 	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
 	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
 	import { boostSettings, loadBoostSettings, defaultBoostSettings } from '$lib/stores/boost-settings.svelte';
@@ -194,10 +194,19 @@
 		return await loadBoostSettings();
 	}
 	// Перечитать таблицы открытой секции (после switch/copy карты — в т.ч. инициированного из шапки).
+	// Сбрасываем ВСЕ флаги: target/corr адресуют новый слот, а learn/bias/delta тоже могли
+	// измениться (обучение на лету) — иначе открытая learn/bias-таблица осталась бы устаревшей.
 	async function reloadOpenSectionTables() {
-		loaded.target = false;   // target/corr теперь адресуют новый/обновлённый слот
-		loaded.corr = false;
+		loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 		if (activeSection) await ensureSectionData(activeSection);
+	}
+	// Пометить секцию как требующую перечитки (сбросить флаг loaded) — для refresh по фокусу/кнопке.
+	function markSectionStale(id: string) {
+		if (id === 'target') loaded.target = false;
+		else if (id === 'corr1' || id === 'corr2') loaded.corr = false;
+		else if (id === 'learnTable') loaded.learn = false;
+		else if (id === 'biasTable') loaded.bias = false;
+		else if (id === 'deltaMap') loaded.delta = false;
 	}
 	async function loadTarget() {
 		const tgt = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_TARGET);
@@ -280,6 +289,7 @@
 	const restoreSettings = () => restoreFromFlash(loadSettings);
 	const restoreTarget   = () => restoreFromFlash(loadTarget);
 	const restoreCorr     = () => restoreFromFlash(loadCorr);
+	const restoreLearn    = () => restoreFromFlash(loadLearn);
 	const restoreBias     = () => restoreFromFlash(loadBias);
 	const restoreDelta    = () => restoreFromFlash(loadDelta);
 	const restoreMaps     = () => restoreFromFlash(loadBoostMaps);
@@ -420,25 +430,19 @@
 	let hlBias = $derived.by(() => netGrid(biasTable.data, hlBase.bias, HL_SCALE.bias));
 
 	// --- Live-дельты обучения: устройство шлёт notify ТОЛЬКО с изменёнными ячейками
-	//     (tableId,row,col,value), без перекачки целых таблиц и без паузы live-данных. ---
+	//     (tableId,row,col,value), без перекачки целых таблиц и без паузы live-данных.
+	//     Подписка — через общий стор boost-learn-stream (ref-counted), чтобы логгер мог
+	//     ловить те же корректировки на любой странице, не глуша notify друг другу. ---
 	let learnDeltaUnsub: (() => void) | null = null;
-	function applyLearnDelta(view: DataView) {
-		if (view.byteLength < 1) return;
-		const count = view.getUint8(0);
-		let off = 1;
-		for (let i = 0; i < count && off + 7 <= view.byteLength; i++) {
-			const tableId = view.getUint8(off);
-			const row = view.getUint8(off + 1);
-			const col = view.getUint8(off + 2);
-			const value = view.getFloat32(off + 3, true); // LE, мирроринг buildBoostLearnDeltaPacket
-			off += 7;
+	function applyLearnDeltas(deltas: LearnDelta[]) {
+		for (const d of deltas) {
 			// 0=Ki, 1=Kp, 2=Kd, 3=BIAS — должно совпадать с BOOST_LEARN_ID_* в прошивке
-			const key: HlKey | null = tableId === 0 ? 'ki' : tableId === 1 ? 'kp'
-				: tableId === 2 ? 'kd' : tableId === 3 ? 'bias' : null;
+			const key: HlKey | null = d.tableId === 0 ? 'ki' : d.tableId === 1 ? 'kp'
+				: d.tableId === 2 ? 'kd' : d.tableId === 3 ? 'bias' : null;
 			if (!key) continue;
 			const tbl = key === 'bias' ? biasTable : learnTables[key];
-			if (!tbl?.data || row >= tbl.data.length || col >= (tbl.data[row]?.length ?? 0)) continue;
-			tbl.data[row][col] = value;   // мутация $state → перерисует значение И подсветку (derived hl* = текущее−базлайн)
+			if (!tbl?.data || d.row >= tbl.data.length || d.col >= (tbl.data[d.row]?.length ?? 0)) continue;
+			tbl.data[d.row][d.col] = d.value;   // мутация $state → перерисует значение И подсветку (derived hl* = текущее−базлайн)
 		}
 	}
 
@@ -578,17 +582,35 @@
 			if (!boostSettings.loaded) loadBoostSettings();
 			if (!boostMaps.loaded) loadBoostMaps();
 			if (activeSection) ensureSectionData(activeSection);
-			// Подписка на live-дельты обучения (приходят только во время калибровки).
-			if (!learnDeltaUnsub) {
-				subscribeCharacteristic(SVC_BOOST, CHR_BOOST_LEARN_DELTA, applyLearnDelta)
-					.then((u) => { learnDeltaUnsub = u; });
-			}
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
-			if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; }
 			clearBaselines();   // подсветка дельт не переживает разрыв связи
 		}
+	});
+
+	// Подписка на live-дельты обучения через общий стор (ref-counted, сам пере-подписывается
+	// на реконнекте). Регистрируем на маунте, снимаем на анмаунте страницы.
+	$effect(() => {
+		learnDeltaUnsub = onLearnDelta(applyLearnDeltas);
+		return () => { if (learnDeltaUnsub) { learnDeltaUnsub(); learnDeltaUnsub = null; } };
+	});
+
+	// Свежесть данных: при возврате на вкладку/фокусе перечитываем открытую секцию с устройства
+	// (за время отсутствия её могли изменить обучение на лету или другое устройство).
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		const refresh = () => {
+			if (document.visibilityState !== 'visible' || !isConnected || !activeSection) return;
+			markSectionStale(activeSection);
+			void ensureSectionData(activeSection);
+		};
+		document.addEventListener('visibilitychange', refresh);
+		window.addEventListener('focus', refresh);
+		return () => {
+			document.removeEventListener('visibilitychange', refresh);
+			window.removeEventListener('focus', refresh);
+		};
 	});
 
 	// Синхронизация редактируемой копии настроек из общего стора (грузится в hydrate()). Клонируем
@@ -1298,10 +1320,13 @@
 							liveCursorY={liveTps}
 						/>
 					</div>
-					<button onclick={resetLearnTable} disabled={saving}
-						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
-						{t('boost.resetLearn')}
-					</button>
+					<div class="flex gap-2">
+						{@render restoreBtn(restoreLearn)}
+						<button onclick={resetLearnTable} disabled={saving}
+							class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
+							{t('boost.resetLearn')}
+						</button>
+					</div>
 				</div>
 			{/if}
 		</section>

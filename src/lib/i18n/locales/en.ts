@@ -296,6 +296,7 @@ export default {
 	'clog.rows': 'Rows',
 	'clog.size': 'Size',
 	'clog.cols': 'Columns',
+	'clog.learnCaptured': 'Learning corrections captured',
 	'clog.capped': 'Row limit reached — recording stopped. Export and clear to continue.',
 	'clog.mark': 'Mark',
 	'clog.markPlaceholder': 'Event note (e.g. cal start)',
