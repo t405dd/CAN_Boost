@@ -11,7 +11,7 @@
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
-	import { allParamEntries, enumToFirmwareName, enumToPwaName } from '$lib/utils/param-mapping';
+	import { allParamEntries, enumToFirmwareName, enumToPwaName, firmwareNameToEnum } from '$lib/utils/param-mapping';
 	import { getCacheSlotDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
@@ -82,6 +82,10 @@
 	let liveRpm = $derived(liveVal(settings.rpmSignalParam));
 	let liveTps = $derived(liveVal(settings.tpsSignalParam));
 	let liveMap = $derived(liveVal(settings.mapSignalParam));
+	// BIAS-таблица индексируется прошивкой по ЦЕЛЕВОМУ бусту (targetMAP), не по факт. MAP —
+	// см. boost_controller.cpp (boostBilinearInterpolate/Write по targetMAP). Живой буст-таргет
+	// стримится как системный параметр BST_TGT.
+	let liveTargetMap = $derived(liveVal(firmwareNameToEnum('BST_TGT')));
 
 
 	// --- 2D array wrappers for TableEditor ---
@@ -1321,7 +1325,7 @@
 							xAxisLabel="RPM"
 							yAxisLabel="Target kPa"
 							liveCursorX={liveRpm}
-							liveCursorY={liveMap}
+							liveCursorY={liveTargetMap}
 							highlight={hlBias}
 							resizable={true}
 							onResize={onBiasResize}
