@@ -8,6 +8,7 @@ import { ensureBoostMapsLoaded, resetBoostMaps } from './boost-maps.svelte';
 import { loadBoostSettings, resetBoostSettings } from './boost-settings.svelte';
 import { loadCo1Config, resetCo1Config } from './co1-settings.svelte';
 import { loadSignalLabels, resetSignalLabels } from './signal-labels.svelte';
+import { clearCalBaselines } from './boost-calibration.svelte';
 
 async function loadWithRetry(fn: () => Promise<boolean>, attempts = 3): Promise<void> {
 	for (let i = 0; i < attempts; i++) {
@@ -51,4 +52,5 @@ export function resetHydration(): void {
 	resetBoostSettings();
 	resetCo1Config();
 	resetSignalLabels();
+	clearCalBaselines();   // базлайн подсветки калибровки не переживает разрыв связи
 }

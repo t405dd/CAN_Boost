@@ -47,6 +47,8 @@ export function getUserParamIndex(paramType: number): number {
 export const PARAM_CACHE_SLOT_START = 15;
 // Состояние бустконтроллера — добавлен в firmware ПОСЛЕ cache-слотов (enum 55).
 export const PARAM_BOOST_STATE = 55;
+// Флаг «цель недостижима» (актуатор на упоре + ошибка вне порога) — enum 56.
+export const PARAM_BOOST_UNREACHABLE = 56;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
@@ -71,6 +73,7 @@ for (let i = 0; i < 40; i++) {
 	PARAM_NAMES[PARAM_CACHE_SLOT_START + i] = `CACHE${i}`;
 }
 PARAM_NAMES[PARAM_BOOST_STATE] = 'BST_ST';
+PARAM_NAMES[PARAM_BOOST_UNREACHABLE] = 'BST_UNR';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.

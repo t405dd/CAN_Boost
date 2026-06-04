@@ -234,6 +234,8 @@ export interface DeviceInfo {
 	bootTime?: number;
 	canActive?: boolean;  // драйвер TWAI запущен
 	canData?: boolean;    // CAN-данные реально приходят (не таймаут)
+	boostEnabled?: boolean; // буст-контроллер включён
+	calibrating?: boolean;  // активен режим автокалибровки (g_boostCalibrationActive)
 }
 
 // --- Boost Controller ---

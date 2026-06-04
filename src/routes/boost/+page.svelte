@@ -2,11 +2,12 @@
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
 	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP,
-		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
+		SVC_SYSTEM, CHR_COMMAND, CHR_DEVICE_INFO, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
 	import { onLearnDelta, type LearnDelta } from '$lib/stores/boost-learn-stream.svelte';
-	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
+	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables, DeviceInfo } from '$lib/types/config';
 	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
 	import { boostSettings, loadBoostSettings, defaultBoostSettings } from '$lib/stores/boost-settings.svelte';
+	import { calBaseline, snapCalBaseline, clearCalBaselines } from '$lib/stores/boost-calibration.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
@@ -230,13 +231,13 @@
 		}
 		loaded.learn = true;
 		// Таблица открыта во время калибровки впервые → зафиксировать базлайн (для оценки изменения).
-		if (calibrating && !hlBase.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
+		if (calibrating && !calBaseline.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
 	}
 	async function loadBias() {
 		const bias = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS);
 		if (bias) biasTable = bias;
 		loaded.bias = true;
-		if (calibrating && !hlBase.bias) snapBaseline('bias');
+		if (calibrating && !calBaseline.bias) snapBaseline('bias');
 	}
 	async function loadDelta() {
 		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
@@ -264,12 +265,13 @@
 	}
 
 
-	// После калибровки — освежить настройки и обученные таблицы (если уже открыты).
+	// После калибровки обученные таблицы на устройстве изменились. Освежаем настройки, помечаем
+	// ВСЕ табличные секции устаревшими (любое последующее раскрытие перечитает свежее с устройства),
+	// и сразу перечитываем открытую секцию, чтобы пользователь увидел результат без ручного действия.
 	async function reloadAfterCalibration() {
 		await loadSettings();
-		if (loaded.learn) await loadLearn();
-		if (loaded.bias) await loadBias();
-		if (loaded.delta) await loadDelta();
+		markAllTablesStale();
+		if (activeSection) await ensureSectionData(activeSection);
 	}
 
 	// --- «Восстановить из Flash»: перечитать данные секции с устройства, затерев несохранённые правки.
@@ -409,15 +411,16 @@
 	const HL_SCALE = { ki: 15, kp: 3, kd: 1.5, bias: 25 } as const;
 	type HlKey = keyof typeof HL_SCALE;
 
-	// Базлайн = снимок значений на старте калибровки (или при первой загрузке таблицы в калибровке).
-	let hlBase = $state<Record<HlKey, number[][] | null>>({ ki: null, kp: null, kd: null, bias: null });
-
+	// Базлайн = снимок значений на старте калибровки. Хранится в ГЛОБАЛЬНОМ сторе
+	// (boost-calibration.svelte), поэтому переживает уход/возврат на страницу: вернувшись во время
+	// калибровки, видим суммарное изменение от её старта, а не от момента возврата. Сброс — на
+	// старте новой калибровки, Save/Discard и централизованно на разрыве связи (resetHydration).
 	function snapBaseline(key: HlKey) {
 		const data = key === 'bias' ? biasTable.data : learnTables[key].data;
-		hlBase[key] = data.map((r) => (r ? r.slice() : []));   // глубокая копия
+		snapCalBaseline(key, data);
 	}
 	function clearBaselines() {
-		hlBase = { ki: null, kp: null, kd: null, bias: null };   // base=null → подсветка пропадает
+		clearCalBaselines();   // base=null → подсветка пропадает
 	}
 	// Сетка интенсивностей = (текущее − базлайн), нормированная. base=null → пусто (нет цветов).
 	function netGrid(data: number[][], base: number[][] | null, scale: number): number[][] {
@@ -438,10 +441,10 @@
 		return out;
 	}
 	// Реактивно: при изменении ячеек (дельты обучения) ИЛИ базлайна — пересчёт и перерисовка.
-	let hlKi = $derived.by(() => netGrid(learnTables.ki.data, hlBase.ki, HL_SCALE.ki));
-	let hlKp = $derived.by(() => netGrid(learnTables.kp.data, hlBase.kp, HL_SCALE.kp));
-	let hlKd = $derived.by(() => netGrid(learnTables.kd.data, hlBase.kd, HL_SCALE.kd));
-	let hlBias = $derived.by(() => netGrid(biasTable.data, hlBase.bias, HL_SCALE.bias));
+	let hlKi = $derived.by(() => netGrid(learnTables.ki.data, calBaseline.ki, HL_SCALE.ki));
+	let hlKp = $derived.by(() => netGrid(learnTables.kp.data, calBaseline.kp, HL_SCALE.kp));
+	let hlKd = $derived.by(() => netGrid(learnTables.kd.data, calBaseline.kd, HL_SCALE.kd));
+	let hlBias = $derived.by(() => netGrid(biasTable.data, calBaseline.bias, HL_SCALE.bias));
 
 	// --- Live-дельты обучения: устройство шлёт notify ТОЛЬКО с изменёнными ячейками
 	//     (tableId,row,col,value), без перекачки целых таблиц и без паузы live-данных.
@@ -503,6 +506,17 @@
 			calStatus = (e as Error).message;
 		}
 		setTimeout(() => calStatus = '', 3000);
+	}
+
+	// Состояние калибровки живёт в прошивке (g_boostCalibrationActive), а локальный флаг
+	// `calibrating` пересоздаётся при каждом входе на страницу → после ухода/возврата он бы
+	// сбросился в false, хотя калибровка на устройстве ВСЁ ЕЩЁ идёт. Поэтому при подключении
+	// читаем реальное состояние из DeviceInfo (поле `calibrating`) и восстанавливаем флаг.
+	async function syncCalibrationState() {
+		try {
+			const info = await readJsonConfig<DeviceInfo>(SVC_SYSTEM, CHR_DEVICE_INFO);
+			if (info && typeof info.calibrating === 'boolean') calibrating = info.calibrating;
+		} catch { /* устройство может не отдать — оставляем как есть */ }
 	}
 
 	// --- Data change callbacks ---
@@ -582,7 +596,17 @@
 
 	function toggleSection(id: string) {
 		activeSection = activeSection === id ? null : id;
+		// ensureSectionData грузит секцию, если она помечена устаревшей (loaded.X=false): при
+		// первом раскрытии, после switch/copy карты и после сохранения/отмены автокалибровки
+		// (markAllTablesStale ниже). Несохранённые ручные правки при обычном сворачивании НЕ
+		// теряются — секция остаётся loaded, повторное раскрытие её не перечитывает.
 		if (activeSection === id && isConnected) ensureSectionData(id);
+	}
+
+	// Пометить ВСЕ табличные секции устаревшими → их следующее раскрытие перечитает с устройства.
+	// Вызывается после автокалибровки: обученные таблицы на устройстве изменились, кэш в UI устарел.
+	function markAllTablesStale() {
+		loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 	}
 
 	// --- CAN ID formatting ---
@@ -608,6 +632,7 @@
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 			if (!boostSettings.loaded) loadBoostSettings();
 			if (!boostMaps.loaded) loadBoostMaps();
+			void syncCalibrationState();   // восстановить реальный статус калибровки с устройства
 			if (activeSection) ensureSectionData(activeSection);
 		}
 		if (!isConnected) {
@@ -628,7 +653,9 @@
 	$effect(() => {
 		if (typeof document === 'undefined') return;
 		const refresh = () => {
-			if (document.visibilityState !== 'visible' || !isConnected || !activeSection) return;
+			if (document.visibilityState !== 'visible' || !isConnected) return;
+			void syncCalibrationState();   // статус калибровки мог измениться, пока вкладка была скрыта
+			if (!activeSection) return;
 			markSectionStale(activeSection);
 			void ensureSectionData(activeSection);
 		};
