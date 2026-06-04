@@ -719,7 +719,7 @@ export default {
 	'help.boost.learningSection': 'Zone-based auto-learning. When enabled, the controller adapts Ki, Kp, and Kd in a 12×12 RPM×TPS table.',
 	'help.boost.kpKdSection': 'Advanced zone learning settings for Kp/Kd multipliers. Controls oscillation detection and persistent error adaptation.',
 	'help.boost.transientSection': 'Temporarily increase Kp during rapid RPM changes (acceleration) for faster boost response.',
-	'help.boost.pidTablesViewer': 'Read-only view of learned values. Ki I-term, Kp multiplier, and Kd multiplier tables (12×12 RPM×TPS).',
+	'help.boost.pidTablesViewer': 'Ki I-term, Kp and Kd tables (12×12 RPM×TPS), absolute values. Editable: tweak by hand and save to device (persists immediately, like BIAS). During calibration, learning will overwrite manual edits.',
 
 	// Display: Sections & Fields
 	'help.display.gridLayout': 'Visual editor for the TFT display layout. Tap a cell to select it for editing. Drag rows or cells in the preview to reorder. Each row must total exactly 12 columns. Add rows with the button below; delete rows or cells via the editor panel.',

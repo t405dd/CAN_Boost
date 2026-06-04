@@ -362,6 +362,20 @@
 		}
 	}
 
+	// Ручное сохранение отредактированных Ki/Kp/Kd. Прошивка применяет {ki,kp,kd} и сразу
+	// пишет в LittleFS (applyBoostLearnTablesFromJson → saveBoostCalibrationToFS).
+	async function saveLearnTables() {
+		saving = true;
+		try {
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_LEARN, learnTables);
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function saveBiasTable() {
 		saving = true;
 		try {
@@ -517,6 +531,19 @@
 	function onCorr2AxisChange(axis: 'x' | 'y', values: number[]) {
 		if (axis === 'x') corr2.xAxisValues = values;
 		else corr2.yAxisValues = values;
+	}
+
+	// --- Ручное редактирование таблиц обучения Ki/Kp/Kd (key = ключ в learnTables) ---
+	const LEARN_FILL: Record<'ki' | 'kp' | 'kd', number> = { ki: 0, kp: 2.0, kd: 0.3 };
+	function onLearnDataChange(key: 'ki' | 'kp' | 'kd', data: number[][]) {
+		learnTables[key].data = data;
+	}
+	function onLearnAxisChange(key: 'ki' | 'kp' | 'kd', axis: 'x' | 'y', values: number[]) {
+		if (axis === 'x') learnTables[key].xAxisValues = values;
+		else learnTables[key].yAxisValues = values;
+	}
+	function onLearnResize(key: 'ki' | 'kp' | 'kd', rows: number, cols: number) {
+		learnTables[key] = resizeTable(learnTables[key], rows, cols, LEARN_FILL[key]);
 	}
 
 	function onBiasDataChange(data: number[][]) {
@@ -1267,7 +1294,6 @@
 							numCols={learnTables.ki.numCols}
 							numRows={learnTables.ki.numRows}
 							decimals={1}
-							readOnly={true}
 							colorGradient={true}
 							gradientMin={0}
 							gradientMax={100}
@@ -1276,6 +1302,10 @@
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
 							liveCursorY={liveTps}
+							resizable={true}
+							onResize={(r, c) => onLearnResize('ki', r, c)}
+							onDataChange={(d) => onLearnDataChange('ki', d)}
+							onAxisChange={(a, v) => onLearnAxisChange('ki', a, v)}
 						/>
 					</div>
 					<!-- Kp Multiplier Learn Table -->
@@ -1288,7 +1318,6 @@
 							numCols={learnTables.kp.numCols}
 							numRows={learnTables.kp.numRows}
 							decimals={1}
-							readOnly={true}
 							colorGradient={true}
 							gradientMin={20}
 							gradientMax={300}
@@ -1297,6 +1326,10 @@
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
 							liveCursorY={liveTps}
+							resizable={true}
+							onResize={(r, c) => onLearnResize('kp', r, c)}
+							onDataChange={(d) => onLearnDataChange('kp', d)}
+							onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
 						/>
 					</div>
 					<!-- Kd Multiplier Learn Table -->
@@ -1309,7 +1342,6 @@
 							numCols={learnTables.kd.numCols}
 							numRows={learnTables.kd.numRows}
 							decimals={1}
-							readOnly={true}
 							colorGradient={true}
 							gradientMin={20}
 							gradientMax={500}
@@ -1318,9 +1350,17 @@
 							yAxisLabel="TPS"
 							liveCursorX={liveRpm}
 							liveCursorY={liveTps}
+							resizable={true}
+							onResize={(r, c) => onLearnResize('kd', r, c)}
+							onDataChange={(d) => onLearnDataChange('kd', d)}
+							onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
 						/>
 					</div>
-					<div class="flex gap-2">
+					<div class="flex gap-2 flex-wrap">
+						<button onclick={saveLearnTables} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
+						</button>
 						{@render restoreBtn(restoreLearn)}
 						<button onclick={resetLearnTable} disabled={saving}
 							class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
