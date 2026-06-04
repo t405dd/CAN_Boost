@@ -19,8 +19,9 @@ const STORE_ROWS = 'rows';   // autoIncrement: { t, seq, ev, v:number[] }
 const STORE_META = 'meta';   // keyPath 'id': { id:'session', startedAt, rateHz, columns }
 
 interface ColumnSpec { paramType: number; name: string; }
-// kind 'lrn' = строка-корректировка обучения (param-колонки пустые, ev несёт текст правки).
-interface RowRec { t: number; seq: number; ev: string; v: number[]; kind?: 'lrn'; }
+// kind 'lrn' = строка-корректировка обучения; 'mark' = маркер (пауза/возобновление и т.п.).
+// У обеих param-колонки пустые (v=[]), текст — в ev. У 'mark' ev начинается с "PAUSE"/"RESUME".
+interface RowRec { t: number; seq: number; ev: string; v: number[]; kind?: 'lrn' | 'mark'; }
 // Снимок всех PID/наддувных таблиц в момент времени (как читаются с устройства).
 interface TablesSnapshot { ki?: unknown; kp?: unknown; kd?: unknown; bias?: unknown; target?: unknown; }
 interface MetaRec {
@@ -64,6 +65,7 @@ function txDone(tx: IDBTransaction): Promise<void> {
 // --- Reactive state (small; row data is kept out of the proxy for perf) -----
 export const logState = $state({
 	recording: false,
+	paused: false,             // запись приостановлена (обрыв BLE / ручная пауза) — сессия жива
 	rowCount: 0,
 	startedAt: 0,        // Date.now() at recording start
 	rateHz: 10,
@@ -74,6 +76,13 @@ export const logState = $state({
 	capped: false,             // hit MAX_ROWS — recording stopped
 	learnEvents: 0             // число пойманных корректировок обучения в текущей сессии
 });
+
+// Причина паузы определяет авто-возобновление: только непреднамеренный обрыв ('disconnect')
+// возобновляется сам при реконнекте. Ручная пауза и ручное отключение — нет.
+type PauseReason = 'disconnect' | 'manual-disconnect' | 'manual' | null;
+let pauseReason: PauseReason = null;
+// Выставляется кнопкой Disconnect ПЕРЕД разрывом → отличаем ручное отключение от обрыва.
+let manualDisconnectPending = false;
 
 // Row data lives outside $state to avoid proxying tens of thousands of entries.
 let rows: RowRec[] = [];
@@ -126,6 +135,23 @@ function recordLearnDeltas(deltas: LearnDelta[]): void {
 	logState.hasData = true;
 }
 
+/** Записать строку-маркер (пауза/возобновление). Param-колонки пустые, текст — в ev.
+ *  Пишется даже без связи (значения с устройства не нужны), фиксирует момент события. */
+function pushMarker(text: string): void {
+	if (!logState.recording) return;
+	const rec: RowRec = {
+		t: Date.now() - logState.startedAt,
+		seq: liveData.sequence,
+		ev: text,
+		v: [],
+		kind: 'mark'
+	};
+	rows.push(rec);
+	pendingFlush.push(rec);
+	logState.rowCount = rows.length;
+	logState.hasData = true;
+}
+
 const MAX_ROWS = 500_000;        // ~safety cap (≈8 h @ 20 Hz)
 const FLUSH_INTERVAL_MS = 1500;  // batch IDB writes
 const BYTES_PER_ROW_EST = 14;    // rough per-column char estimate for size readout
@@ -175,6 +201,8 @@ export async function startRecording(rateHz = 10): Promise<void> {
 	if (logState.recording) return;
 	await clearLog(); // fresh session
 	logState.recording = true;
+	logState.paused = false;
+	pauseReason = null;
 	logState.rateHz = rateHz;
 	logState.startedAt = Date.now();
 	logState.capped = false;
@@ -198,10 +226,60 @@ export async function stopRecording(): Promise<void> {
 	if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
 	if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
 	if (learnUnsub) { learnUnsub(); learnUnsub = null; }
+	logState.paused = false;
+	pauseReason = null;
 	// Снимок таблиц на стопе — чтобы видеть, что обучение изменило за сессию (diff со стартом).
 	tablesEnd = await snapshotBoostTables();
 	await writeMeta();
 	await flush();
+}
+
+// --- Пауза/возобновление записи (обрыв BLE / ручная пауза) ---------------------
+// Сессия остаётся живой, sampleTimer глушится (мусор не пишется), ставится маркер с причиной.
+function pauseRecording(reason: Exclude<PauseReason, null>, markerText: string): void {
+	if (!logState.recording || logState.paused) return;
+	logState.paused = true;
+	pauseReason = reason;
+	if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
+	pushMarker(markerText);
+	void flush();   // дописать хвост в IDB, чтобы ничего не потерять
+}
+
+function resumeRecording(markerText: string): void {
+	if (!logState.recording || !logState.paused) return;
+	logState.paused = false;
+	pauseReason = null;
+	pushMarker(markerText);
+	const periodMs = Math.max(20, Math.round(1000 / logState.rateHz));
+	if (!sampleTimer) sampleTimer = setInterval(sampleTick, periodMs);
+	if (!flushTimer) flushTimer = setInterval(() => { void flush(); }, FLUSH_INTERVAL_MS);
+}
+
+/** Ручная пауза/возобновление кнопкой на странице логирования. */
+export function toggleManualPause(): void {
+	if (!logState.recording) return;
+	if (logState.paused) resumeRecording('RESUME (manual)');
+	else pauseRecording('manual', 'PAUSE (manual)');
+}
+
+/** Кнопка Disconnect вызывает это ПЕРЕД разрывом — чтобы отличить ручное отключение от обрыва. */
+export function markManualDisconnect(): void {
+	manualDisconnectPending = true;
+}
+
+/** Вызывается из layout на КАЖДУЮ смену статуса BLE. Пауза при потере связи, авто-возобновление
+ *  только после НЕпреднамеренного обрыва (не после ручного Disconnect и не после ручной паузы). */
+export function handleConnectionChange(connected: boolean): void {
+	if (connected) {
+		const wasInvoluntary = logState.paused && pauseReason === 'disconnect';
+		manualDisconnectPending = false;
+		if (wasInvoluntary) resumeRecording('RESUME (BLE reconnected)');
+		return;
+	}
+	// Потеря связи.
+	if (!logState.recording || logState.paused) return;
+	if (manualDisconnectPending) pauseRecording('manual-disconnect', 'PAUSE (manual disconnect)');
+	else pauseRecording('disconnect', 'PAUSE (BLE disconnected)');
 }
 
 export async function clearLog(): Promise<void> {
@@ -236,6 +314,9 @@ export function markEvent(text: string): void {
 }
 
 function sampleTick(): void {
+	// Страховка: без связи liveData держит ЗАСТЫВШИЕ значения — не пишем дубль-мусор.
+	// (Основной механизм — пауза глушит таймер; это защита от гонок.)
+	if (bleState.status !== 'connected') return;
 	const list = getParamList();
 
 	// Lazily lock column set on the first tick that actually has data.
@@ -316,8 +397,9 @@ export function buildCsv(): string {
 	const blanks = columnsSpec.map(() => '');
 	for (const r of rows) {
 		const iso = new Date(logState.startedAt + r.t).toISOString();
-		// Строки-корректировки обучения (kind='lrn') несут текст в event, param-колонки пустые.
-		const params = r.kind === 'lrn'
+		// Строки-корректировки обучения (kind='lrn') и маркеры (kind='mark') несут текст в event,
+		// param-колонки пустые. У них v=[], поэтому отдаём пустые ячейки.
+		const params = r.v.length === 0
 			? blanks
 			: r.v.map((x) => (Number.isFinite(x) ? formatNum(x) : ''));
 		const cells = [String(r.t), iso, String(r.seq), csvCell(r.ev ?? ''), ...params];

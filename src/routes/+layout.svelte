@@ -6,6 +6,7 @@
 	import { pwaUpdate, checkForUpdate, applyUpdate } from '$lib/stores/pwa-update.svelte';
 	import { boostMaps, setActiveBoostMap } from '$lib/stores/boost-maps.svelte';
 	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
+	import { handleConnectionChange, markManualDisconnect } from '$lib/stores/client-log.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import BoostLiveBar from '$lib/components/BoostLiveBar.svelte';
@@ -37,6 +38,8 @@
 				// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.
 				resetHydration();
 			}
+			// Логгер: пауза записи при потере связи, авто-возобновление после непреднамеренного обрыва.
+			handleConnectionChange(status === 'connected');
 		});
 	});
 
@@ -76,6 +79,7 @@
 
 	function handleConnect() {
 		if (bleState.status === 'connected') {
+			markManualDisconnect();   // отличить ручное отключение от обрыва (без авто-возобновления записи)
 			disconnect();
 		} else if (bleState.status === 'disconnected') {
 			connect();

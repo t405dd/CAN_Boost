@@ -4,7 +4,7 @@
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import {
 		logState, restoreLog, startRecording, stopRecording, clearLog,
-		markEvent, shareLog, downloadLog
+		markEvent, shareLog, downloadLog, toggleManualPause
 	} from '$lib/stores/client-log.svelte';
 	import { debugLog, clearDebugLog, debugLogText } from '$lib/stores/debug-log.svelte';
 
@@ -135,22 +135,43 @@
 			{/each}
 		</div>
 
-		<!-- Start/Stop -->
-		<button onclick={toggleRecord}
-			class="w-full py-3 rounded-lg font-bold text-sm active:scale-95 transition-all
-				{logState.recording
-					? 'bg-[var(--color-dash-danger)]/20 text-[var(--color-dash-danger)] border border-[var(--color-dash-danger)]/40'
-					: 'bg-[var(--color-dash-success)]/20 text-[var(--color-dash-success)] border border-[var(--color-dash-success)]/40'}">
-			<span class="inline-flex items-center gap-2 justify-center">
-				{#if logState.recording}
-					<span class="w-2.5 h-2.5 rounded-full bg-[var(--color-dash-danger)] animate-pulse"></span>
-					{t('clog.stop')}
-				{:else}
+		<!-- Start / Stop + Pause -->
+		{#if logState.recording}
+			<div class="flex gap-2">
+				<button onclick={toggleRecord}
+					class="flex-1 py-3 rounded-lg font-bold text-sm active:scale-95 transition-all bg-[var(--color-dash-danger)]/20 text-[var(--color-dash-danger)] border border-[var(--color-dash-danger)]/40">
+					<span class="inline-flex items-center gap-2 justify-center">
+						<span class="w-2.5 h-2.5 rounded-full bg-[var(--color-dash-danger)] {logState.paused ? '' : 'animate-pulse'}"></span>
+						{t('clog.stop')}
+					</span>
+				</button>
+				<button onclick={toggleManualPause}
+					class="flex-1 py-3 rounded-lg font-bold text-sm active:scale-95 transition-all bg-[var(--color-dash-warn)]/20 text-[var(--color-dash-warn)] border border-[var(--color-dash-warn)]/40">
+					<span class="inline-flex items-center gap-2 justify-center">
+						{#if logState.paused}
+							<span class="w-2.5 h-2.5 rounded-sm bg-[var(--color-dash-warn)]"></span>
+							{t('clog.resume')}
+						{:else}
+							<span class="inline-flex gap-0.5"><span class="w-1 h-2.5 bg-[var(--color-dash-warn)]"></span><span class="w-1 h-2.5 bg-[var(--color-dash-warn)]"></span></span>
+							{t('clog.pause')}
+						{/if}
+					</span>
+				</button>
+			</div>
+			{#if logState.paused}
+				<div class="px-3 py-2 rounded-lg bg-[var(--color-dash-warn)]/10 border border-[var(--color-dash-warn)]/30 text-[11px] text-[var(--color-dash-warn)]">
+					{isConnected ? t('clog.paused') : t('clog.pausedDisconnect')}
+				</div>
+			{/if}
+		{:else}
+			<button onclick={toggleRecord}
+				class="w-full py-3 rounded-lg font-bold text-sm active:scale-95 transition-all bg-[var(--color-dash-success)]/20 text-[var(--color-dash-success)] border border-[var(--color-dash-success)]/40">
+				<span class="inline-flex items-center gap-2 justify-center">
 					<span class="w-2.5 h-2.5 rounded-sm bg-[var(--color-dash-success)]"></span>
 					{t('clog.start')}
-				{/if}
-			</span>
-		</button>
+				</span>
+			</button>
+		{/if}
 
 		<!-- Stats -->
 		<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
