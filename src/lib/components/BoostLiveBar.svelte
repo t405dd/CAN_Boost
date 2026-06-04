@@ -29,20 +29,20 @@
 </script>
 
 {#if any}
-	<div class="shrink-0 flex items-center gap-3 px-3 py-1 bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 text-[10px] font-mono overflow-x-auto">
-		<div class="flex items-center gap-1.5 shrink-0">
-			<span class="text-[var(--color-dash-text-dim)]">RPM</span>
-			<span class="text-[var(--color-dash-text)] font-bold tabular-nums">{rpm === undefined ? '—' : fmt(rpm, 0)}</span>
+	<div class="shrink-0 flex items-stretch w-full bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 font-mono">
+		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
+			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">RPM</span>
+			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{rpm === undefined ? '—' : fmt(rpm, 0)}</span>
 		</div>
 
-		<div class="flex items-center gap-1.5 shrink-0">
-			<span class="text-[var(--color-dash-text-dim)]">MAP</span>
-			<span class="text-[var(--color-dash-text)] font-bold tabular-nums">{map === undefined ? '—' : fmt(map)}</span>
+		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
+			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">MAP</span>
+			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{map === undefined ? '—' : fmt(map)}</span>
 		</div>
 
-		<div class="flex items-center gap-1.5 shrink-0">
-			<span class="text-[var(--color-dash-text-dim)]">{t('hdr.err')}</span>
-			<span class="font-bold tabular-nums" style="color: {errColor}">
+		<div class="flex-1 flex flex-col items-center justify-center py-1.5">
+			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">{t('hdr.err')}</span>
+			<span class="text-lg leading-none font-bold tabular-nums" style="color: {errColor}">
 				{err === undefined ? '—' : (err > 0 ? '+' : '') + fmt(err)}
 			</span>
 		</div>
