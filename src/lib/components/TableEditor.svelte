@@ -175,6 +175,9 @@
 	// --- Cell click / selection ---
 	function onCellMouseDown(row: number, col: number, e: MouseEvent) {
 		if (readOnly) return;
+		// Глушим синтетический mousedown, который браузер шлёт после тач-выделения — иначе он схлопнул
+		// бы диапазон в одну ячейку на отпускании пальца (см. touchSelect/onEnd).
+		if (Date.now() - lastTouchSelectEnd < 700) return;
 		if (editingCell) commitEdit();
 
 		const now = Date.now();
@@ -213,6 +216,107 @@
 
 	function onMouseUp() {
 		isDragging = false;
+	}
+
+	// --- Touch multi-select (мобильный): долгое нажатие → вход в режим, затем тянем палец ---
+	// На тач mouseenter при перетаскивании НЕ срабатывает, поэтому ячейку под пальцем находим через
+	// document.elementFromPoint (у data-ячеек есть data-row/data-col). Long-press с вибро/звуком
+	// отделяет «выделить диапазон» от обычного скролла/тапа.
+	const LONG_PRESS_MS = 500;            // удержание для входа в режим выделения (2с ощущается зависанием)
+	const LONG_PRESS_MOVE_CANCEL_PX = 12; // уехал дальше до срабатывания → это скролл, отменяем long-press
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let touchSelecting = $state(false);
+	let touchStartPos: { x: number; y: number } | null = null;
+	let lastTouchSelectEnd = 0;           // время конца тач-выделения — глушим синтетический mousedown после него
+
+	function clearLongPress() {
+		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	}
+
+	// Тактильный + звуковой отклик в момент входа в режим выделения. Оба best-effort: vibrate есть не
+	// везде, AudioContext создаётся внутри тач-жеста (это считается user gesture → воспроизведение разрешено).
+	function selectFeedback() {
+		try { navigator.vibrate?.(40); } catch { /* нет поддержки вибрации */ }
+		try {
+			const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+			if (!AC) return;
+			const ctx = new AC();
+			const osc = ctx.createOscillator();
+			const gain = ctx.createGain();
+			osc.frequency.value = 880;
+			gain.gain.value = 0.04;
+			osc.connect(gain); gain.connect(ctx.destination);
+			osc.start();
+			osc.stop(ctx.currentTime + 0.06);
+			osc.onended = () => ctx.close();
+		} catch { /* звук не критичен */ }
+	}
+
+	function cellFromPoint(x: number, y: number): CellCoord | null {
+		const el = document.elementFromPoint(x, y) as HTMLElement | null;
+		const cellEl = el?.closest('[data-cell]') as HTMLElement | null;
+		if (!cellEl) return null;
+		const row = Number(cellEl.dataset.row);
+		const col = Number(cellEl.dataset.col);
+		if (Number.isNaN(row) || Number.isNaN(col)) return null;
+		return { row, col };
+	}
+
+	// Svelte-экшен на контейнере таблицы: вешает тач-слушатели НЕпассивно (нужен preventDefault, чтобы
+	// не скроллить во время выделения). touchstart оставляем пассивным — там preventDefault не нужен.
+	function touchSelect(node: HTMLElement) {
+		function onStart(e: TouchEvent) {
+			clearLongPress();
+			if (readOnly || e.touches.length !== 1) return;   // мультитач (пинч-зум) игнорируем
+			const tp = e.touches[0];
+			const cell = cellFromPoint(tp.clientX, tp.clientY);
+			if (!cell) return;                                 // палец не на ячейке данных
+			touchStartPos = { x: tp.clientX, y: tp.clientY };
+			longPressTimer = setTimeout(() => {
+				longPressTimer = null;
+				if (editingCell) commitEdit();
+				touchSelecting = true;
+				anchor = cell;
+				selectionEnd = cell;
+				selection = [cell];
+				lastClickCell = null;                          // отменяем детект двойного тапа
+				selectFeedback();
+			}, LONG_PRESS_MS);
+		}
+		function onMove(e: TouchEvent) {
+			const tp = e.touches[0];
+			if (!tp) return;
+			if (touchSelecting && anchor) {
+				e.preventDefault();                            // не скроллим, пока тянем выделение
+				const cell = cellFromPoint(tp.clientX, tp.clientY);
+				if (cell) { selection = rectSelection(anchor, cell); selectionEnd = cell; }
+				return;
+			}
+			if (touchStartPos) {                               // ещё не в режиме — возможно, это скролл
+				const dx = tp.clientX - touchStartPos.x;
+				const dy = tp.clientY - touchStartPos.y;
+				if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_CANCEL_PX) clearLongPress();
+			}
+		}
+		function onEnd() {
+			clearLongPress();
+			if (touchSelecting) lastTouchSelectEnd = Date.now();   // взвести глушилку синтетического mousedown
+			touchSelecting = false;
+			touchStartPos = null;
+		}
+		node.addEventListener('touchstart', onStart, { passive: true });
+		node.addEventListener('touchmove', onMove, { passive: false });
+		node.addEventListener('touchend', onEnd);
+		node.addEventListener('touchcancel', onEnd);
+		return {
+			destroy() {
+				node.removeEventListener('touchstart', onStart);
+				node.removeEventListener('touchmove', onMove);
+				node.removeEventListener('touchend', onEnd);
+				node.removeEventListener('touchcancel', onEnd);
+				clearLongPress();
+			}
+		};
 	}
 
 	// --- Start editing ---
@@ -580,7 +684,9 @@
 	{/if}
 
 	<!-- Table -->
-	<div class="table-scroll overflow-x-auto relative">
+	<!-- use:touchSelect — мобильное мультивыделение (long-press → тянем палец). touch-action: none во
+	     время выделения, чтобы браузер не перехватывал жест под скролл/зум. -->
+	<div class="table-scroll overflow-x-auto relative {touchSelecting ? 'ring-2 ring-[var(--color-dash-accent)] rounded' : ''}" use:touchSelect style:touch-action={touchSelecting ? 'none' : 'auto'}>
 		<table class="border-collapse select-none" style="table-layout: fixed; width: {tableWidthPx}px; touch-action: manipulation">
 			<tbody>
 				{#each displayRowIndices as dataRow}
@@ -628,6 +734,7 @@
 										use:focusOnMount />
 								{:else}
 									<div
+										data-cell data-row={dataRow} data-col={c}
 										class="w-[60px] h-[28px] flex items-center justify-center text-[10px] font-mono border transition-colors duration-75
 											{selected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/20' : 'border-[var(--color-dash-border)]/30'}
 											{isCursor ? 'ring-2 ring-[var(--color-dash-warn)] ring-inset' : ''}
