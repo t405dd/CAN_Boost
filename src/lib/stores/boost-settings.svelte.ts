@@ -46,7 +46,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		oscillationWindowMs: 1000.0,
 		persistentErrorTimeMs: 3000.0,
 		persistentErrorMinKpa: 3.0,
-		transientGain: 0.5,
+		transientGain: 0.0,
 		dRpmFilterAlpha: 0.1,
 		phaseHysteresis: 1.1,
 		phaseRateLead: 0.0,

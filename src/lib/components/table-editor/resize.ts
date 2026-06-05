@@ -32,8 +32,10 @@ export function resizeAxis(axis: number[], n: number, fallbackStep = 10): number
 export function resizeTable<T extends ResizableTable>(t: T, rows: number, cols: number, fill: number): T {
 	const numRows = Math.max(1, Math.floor(rows));
 	const numCols = Math.max(1, Math.floor(cols));
-	const xAxisValues = resizeAxis(t.xAxisValues, numCols);
-	const yAxisValues = numRows > 1 ? resizeAxis(t.yAxisValues, numRows) : t.yAxisValues.slice(0, numRows);
+	// Оси могут отсутствовать: firmware для 1D deltaMap не шлёт yAxisValues → было undefined.slice() и
+	// тихий обрыв ресайза. Подстраховываемся `?? []` по обеим осям.
+	const xAxisValues = resizeAxis(t.xAxisValues ?? [], numCols);
+	const yAxisValues = numRows > 1 ? resizeAxis(t.yAxisValues ?? [], numRows) : (t.yAxisValues ?? []).slice(0, numRows);
 
 	const srcRows = t.data.length;
 	const data: number[][] = [];

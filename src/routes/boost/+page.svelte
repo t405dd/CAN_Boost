@@ -249,7 +249,8 @@
 	}
 	async function loadDelta() {
 		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
-		if (delta) deltaMapTable = delta;
+		// firmware не шлёт yAxisValues для 1D deltaMap → нормализуем, иначе ресайз падал на .slice().
+		if (delta) deltaMapTable = { ...delta, yAxisValues: delta.yAxisValues ?? [] };
 		loaded.delta = true;
 	}
 
