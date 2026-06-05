@@ -594,13 +594,14 @@ export default {
 
 	// Boost: Learning
 	'help.boost.learnEnable': 'Enable zone-based learning for all PID coefficients (Ki I-term, Kp, Kd). Each RPM×TPS zone is learned independently.',
-	'help.boost.learnRate': 'I-term learn rate (0–1). Per stability window: table += rate × (integral − table). 0.05 → ~1.5 min to 90% convergence (at 2 s window). Higher = faster but less stable.',
+	'help.boost.learnRate': 'Ki learn rate (0–1). Each cycle (25 Hz) while error in-band: table += rate × (integral − table). Higher = bigger step, faster but jitterier.',
 	'help.boost.learnErrorThreshold': 'Error must be below this (kPa) for zone values to be saved to learn tables.',
-	'help.boost.learnStabilityTime': 'How long (ms) error must stay within threshold before Ki/Kp/Kd are written. Low (~300) suits on-road learning; BIAS learns continuously (P5) regardless.',
+	'help.boost.learnStabilityTime': 'How long (ms) error must stay in-band before Ki/Kp/Kd are written (BIAS learns continuously). Lower = learns more often.',
 
 	// Boost: Kp/Kd Zone Learning
-	'help.boost.learnKpRate': 'Kp learn rate (0–1). Per stability window: table += rate × (runtimeKp − table). 0.05 → ~1.5 min to 90% convergence (at 2 s window). 0.10 → ~46 s. Higher = faster adaptation.',
-	'help.boost.learnKdRate': 'Kd learn rate (0–1). Per stability window: table += rate × (runtimeKd − table). 0.05 → ~1.5 min to 90% convergence (at 2 s window). 0.10 → ~46 s. Higher = faster adaptation.',
+	'help.boost.learnKpRate': 'Kp learn rate (0–1). Each cycle (25 Hz) while error in-band: table += rate × (runtimeKp − table). Higher = bigger step.',
+	'help.boost.learnKdRate': 'Kd learn rate (0–1). Each cycle (25 Hz) while error in-band: table += rate × (runtimeKd − table). Higher = bigger step.',
+	'help.boost.learnBiasRate': 'BIAS learn rate (0–1). Each cycle (25 Hz) while error in-band, quality-weighted (quieter on fast MAP change). Higher = bigger step.',
 	'help.boost.kpRange': 'Min/Max bounds for zone Kp (absolute units). Clamps the adaptive Kp value.',
 	'help.boost.kdRange': 'Min/Max bounds for zone Kd (absolute units). Clamps the adaptive Kd value.',
 	'help.boost.oscillationThreshold': 'Number of error sign changes within the window to detect oscillation. Triggers Kp decrease / Kd increase.',
