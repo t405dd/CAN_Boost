@@ -8,6 +8,7 @@
 	import { t } from '$lib/i18n/index.svelte';
 
 	let rpm = $derived(liveData.params[boostSettings.value.rpmSignalParam]?.value);
+	let tps = $derived(liveData.params[boostSettings.value.tpsSignalParam]?.value);
 	let map = $derived(liveData.params[boostSettings.value.mapSignalParam]?.value);
 	let err = $derived(liveData.params[5]?.value);   // BST_ERR
 
@@ -24,7 +25,7 @@
 	);
 
 	let any = $derived(
-		rpm !== undefined || map !== undefined || err !== undefined
+		rpm !== undefined || tps !== undefined || map !== undefined || err !== undefined
 	);
 </script>
 
@@ -33,6 +34,11 @@
 		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
 			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">RPM</span>
 			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{rpm === undefined ? '—' : fmt(rpm, 0)}</span>
+		</div>
+
+		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
+			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">TPS</span>
+			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{tps === undefined ? '—' : fmt(tps, 0)}</span>
 		</div>
 
 		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
