@@ -1195,6 +1195,13 @@
 						<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.calSpeedHint')}</p>
 					</div>
 
+					<!-- Ручная скорость обучения BIAS (тонкая настройка поверх пресета скорости) -->
+					<label class="space-y-1 block">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnBiasRate')}<HelpTip key="help.boost.learnBiasRate" /></span>
+						<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnBiasRate}
+							class="w-32 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+					</label>
+
 					<!-- P7: автообучение всегда активно (при «Включить»); авто-сейв с гейтами + эталон -->
 					<div class="pt-2 border-t border-[var(--color-dash-border)]/30 space-y-2">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.autoLearn')}<HelpTip key="help.boost.autoLearn" /></span>
@@ -1405,11 +1412,6 @@
 						<label class="space-y-1">
 							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseRateLead')}<HelpTip key="help.boost.phaseRateLead" /></span>
 							<input type="number" step="0.02" min="0" max="1" bind:value={settings.phaseRateLead}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnBiasRate')}<HelpTip key="help.boost.learnBiasRate" /></span>
-							<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnBiasRate}
 								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 						</label>
 					</div>
