@@ -596,7 +596,7 @@ export default {
 	'help.boost.learnEnable': 'Enable zone-based learning for all PID coefficients (Ki I-term, Kp, Kd). Each RPM×TPS zone is learned independently.',
 	'help.boost.learnRate': 'I-term learn rate (0–1). Per stability window: table += rate × (integral − table). 0.05 → ~1.5 min to 90% convergence (at 2 s window). Higher = faster but less stable.',
 	'help.boost.learnErrorThreshold': 'Error must be below this (kPa) for zone values to be saved to learn tables.',
-	'help.boost.learnStabilityTime': 'Error must stay below threshold for this duration (ms) before learn values are updated.',
+	'help.boost.learnStabilityTime': 'How long (ms) error must stay within threshold before Ki/Kp/Kd are written. Low (~300) suits on-road learning; BIAS learns continuously (P5) regardless.',
 
 	// Boost: Kp/Kd Zone Learning
 	'help.boost.learnKpRate': 'Kp learn rate (0–1). Per stability window: table += rate × (runtimeKp − table). 0.05 → ~1.5 min to 90% convergence (at 2 s window). 0.10 → ~46 s. Higher = faster adaptation.',
