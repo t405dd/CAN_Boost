@@ -819,8 +819,10 @@
 				<tr>
 					{#if is2D}
 						<td class="p-0">
-							<div class="w-[40px] h-[28px] flex items-center justify-center text-[9px] text-[var(--color-dash-text-dim)] bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]/30 truncate px-0.5">
-								{yAxisLabel ?? 'Y'} \ {xAxisLabel ?? 'X'}
+							<!-- Подпись угловой ячейки в 2 строки (узкая колонка): сверху ось Y, снизу ось X. -->
+							<div class="w-[40px] h-[28px] flex flex-col items-center justify-center leading-none text-[9px] text-[var(--color-dash-text-dim)] bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]/30 overflow-hidden px-0.5">
+								<span class="max-w-full truncate">{yAxisLabel ?? 'Y'}</span>
+								<span class="max-w-full truncate">{xAxisLabel ?? 'X'}</span>
 							</div>
 						</td>
 					{/if}
