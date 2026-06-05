@@ -460,6 +460,7 @@ export default {
 	'boost.canInterval': 'Send interval (ms)',
 	'boost.targetTable': 'Target MAP Table (kPa)',
 	'boost.correction': 'Correction Table',
+	'boost.corrections': 'Target corrections (advanced)',
 	'boost.corr1': 'Correction 1',
 	'boost.corr2': 'Correction 2',
 	'boost.corrAxis': 'Axis parameter',

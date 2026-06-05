@@ -460,6 +460,7 @@ export default {
 	'boost.canInterval': 'Интервал отправки (мс)',
 	'boost.targetTable': 'Целевое давление MAP (кПа)',
 	'boost.correction': 'Таблица коррекции',
+	'boost.corrections': 'Коррекции цели (продвинутое)',
 	'boost.corr1': 'Коррекция 1',
 	'boost.corr2': 'Коррекция 2',
 	'boost.corrAxis': 'Параметр оси',

@@ -266,7 +266,7 @@
 		const need =
 			(id === 'target' && !loaded.target) ? loadTarget :
 			((id === 'corr1' || id === 'corr2') && !loaded.corr) ? loadCorr :
-			(id === 'learnTable' && !loaded.learn) ? loadLearn :
+			(id === 'pid' && !loaded.learn) ? loadLearn :
 			(id === 'biasTable' && !loaded.bias) ? loadBias :
 			(id === 'deltaMap' && !loaded.delta) ? loadDelta : null;
 		if (!need) return;
@@ -599,6 +599,13 @@
 		// (markAllTablesStale ниже). Несохранённые ручные правки при обычном сворачивании НЕ
 		// теряются — секция остаётся loaded, повторное раскрытие её не перечитывает.
 		if (activeSection === id && isConnected) ensureSectionData(id);
+	}
+
+	// Вложенные под-аккордеоны коррекций внутри секции Target (одна открыта за раз).
+	let openCorr = $state<string | null>(null);
+	function toggleCorr(id: string) {
+		openCorr = openCorr === id ? null : id;
+		if (openCorr === id && isConnected) ensureSectionData(id);
 	}
 
 	// Пометить ВСЕ табличные секции устаревшими → их следующее раскрытие перечитает с устройства.
@@ -961,125 +968,130 @@
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
 					{@render restoreBtn(restoreTarget)}
-				</div>
-			{/if}
-		</section>
 
-		<!-- 4. Correction Table 1 -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('corr1')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.corr1')}<HelpTip key="help.boost.corrTableSection" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'corr1' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'corr1'}
-				<div class="px-3 pb-3 space-y-2">
-					<div class="flex gap-3 flex-wrap">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} X<HelpTip key="help.boost.corrAxis" /></span>
-							<select bind:value={settings.corr1AxisParam}
-								class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-								{#each paramOptions as p}
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} Y</span>
-							<select bind:value={settings.corr1YAxisParam}
-								class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-								{#each paramOptions as p}
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-								{/each}
-							</select>
-						</label>
+					<!-- Коррекции цели — вложенные под-аккордеоны (продвинутое) -->
+					<div class="pt-3 border-t border-[var(--color-dash-border)]/30 space-y-2">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.corrections')}<HelpTip key="help.boost.corrTableSection" /></span>
+
+						<!-- Корр.1 (вложенный) -->
+						<div class="rounded bg-[var(--color-dash-bg)]/40 border border-[var(--color-dash-border)]/40">
+							<button class="w-full flex items-center justify-between px-2 py-1.5" onclick={() => toggleCorr('corr1')}>
+								<span class="text-[11px] text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.corr1')}</span>
+								<span class="text-[11px] text-[var(--color-dash-text-dim)]">{openCorr === 'corr1' ? '−' : '+'}</span>
+							</button>
+							{#if openCorr === 'corr1'}
+								<div class="px-2 pb-2 space-y-2">
+									<div class="flex gap-3 flex-wrap">
+										<label class="space-y-1">
+											<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} X<HelpTip key="help.boost.corrAxis" /></span>
+											<select bind:value={settings.corr1AxisParam}
+												class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
+												{#each paramOptions as p}
+													<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
+												{/each}
+											</select>
+										</label>
+										<label class="space-y-1">
+											<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} Y</span>
+											<select bind:value={settings.corr1YAxisParam}
+												class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
+												{#each paramOptions as p}
+													<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
+												{/each}
+											</select>
+										</label>
+									</div>
+									<TableEditor
+										data={corr1.data}
+										dimmed={!loaded.corr}
+										xAxisValues={corr1.xAxisValues}
+										yAxisValues={corr1.yAxisValues}
+										numCols={corr1.numCols}
+										numRows={corr1.numRows}
+										decimals={1}
+										colorGradient={true}
+										gradientMin={50}
+										gradientMax={150}
+										xAxisLabel={enumParamShortName(settings.corr1AxisParam)}
+										yAxisLabel={enumParamShortName(settings.corr1YAxisParam)}
+										liveCursorX={liveVal(settings.corr1AxisParam)}
+										liveCursorY={liveVal(settings.corr1YAxisParam)}
+										resizable={true}
+										onResize={onCorr1Resize}
+										onDataChange={onCorr1DataChange}
+										onAxisChange={onCorr1AxisChange}
+									/>
+									<button onclick={saveCorrTables} disabled={saving}
+										class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+										{saving ? t('common.saving') : t('common.saveToDevice')}
+									</button>
+									{@render restoreBtn(restoreCorr)}
+								</div>
+							{/if}
+						</div>
+
+						<!-- Корр.2 (вложенный) -->
+						<div class="rounded bg-[var(--color-dash-bg)]/40 border border-[var(--color-dash-border)]/40">
+							<button class="w-full flex items-center justify-between px-2 py-1.5" onclick={() => toggleCorr('corr2')}>
+								<span class="text-[11px] text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.corr2')}</span>
+								<span class="text-[11px] text-[var(--color-dash-text-dim)]">{openCorr === 'corr2' ? '−' : '+'}</span>
+							</button>
+							{#if openCorr === 'corr2'}
+								<div class="px-2 pb-2 space-y-2">
+									<div class="flex gap-3 flex-wrap">
+										<label class="space-y-1">
+											<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} X<HelpTip key="help.boost.corrAxis" /></span>
+											<select bind:value={settings.corr2AxisParam}
+												class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
+												{#each paramOptions as p}
+													<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
+												{/each}
+											</select>
+										</label>
+										<label class="space-y-1">
+											<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} Y</span>
+											<select bind:value={settings.corr2YAxisParam}
+												class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
+												{#each paramOptions as p}
+													<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
+												{/each}
+											</select>
+										</label>
+									</div>
+									<TableEditor
+										data={corr2.data}
+										dimmed={!loaded.corr}
+										xAxisValues={corr2.xAxisValues}
+										yAxisValues={corr2.yAxisValues}
+										numCols={corr2.numCols}
+										numRows={corr2.numRows}
+										decimals={1}
+										colorGradient={true}
+										gradientMin={50}
+										gradientMax={150}
+										xAxisLabel={enumParamShortName(settings.corr2AxisParam)}
+										yAxisLabel={enumParamShortName(settings.corr2YAxisParam)}
+										liveCursorX={liveVal(settings.corr2AxisParam)}
+										liveCursorY={liveVal(settings.corr2YAxisParam)}
+										resizable={true}
+										onResize={onCorr2Resize}
+										onDataChange={onCorr2DataChange}
+										onAxisChange={onCorr2AxisChange}
+									/>
+									<button onclick={saveCorrTables} disabled={saving}
+										class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+										{saving ? t('common.saving') : t('common.saveToDevice')}
+									</button>
+									{@render restoreBtn(restoreCorr)}
+								</div>
+							{/if}
+						</div>
 					</div>
-					<TableEditor
-						data={corr1.data}
-						dimmed={!loaded.corr}
-						xAxisValues={corr1.xAxisValues}
-						yAxisValues={corr1.yAxisValues}
-						numCols={corr1.numCols}
-						numRows={corr1.numRows}
-						decimals={1}
-						colorGradient={true}
-						gradientMin={50}
-						gradientMax={150}
-						xAxisLabel={enumParamShortName(settings.corr1AxisParam)}
-						yAxisLabel={enumParamShortName(settings.corr1YAxisParam)}
-						liveCursorX={liveVal(settings.corr1AxisParam)}
-						liveCursorY={liveVal(settings.corr1YAxisParam)}
-						resizable={true}
-						onResize={onCorr1Resize}
-						onDataChange={onCorr1DataChange}
-						onAxisChange={onCorr1AxisChange}
-					/>
-					<button onclick={saveCorrTables} disabled={saving}
-						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{saving ? t('common.saving') : t('common.saveToDevice')}
-					</button>
-					{@render restoreBtn(restoreCorr)}
 				</div>
 			{/if}
 		</section>
 
-		<!-- 5. Correction Table 2 -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('corr2')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.corr2')}<HelpTip key="help.boost.corrTableSection" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'corr2' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'corr2'}
-				<div class="px-3 pb-3 space-y-2">
-					<div class="flex gap-3 flex-wrap">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} X<HelpTip key="help.boost.corrAxis" /></span>
-							<select bind:value={settings.corr2AxisParam}
-								class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-								{#each paramOptions as p}
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.corrAxis')} Y</span>
-							<select bind:value={settings.corr2YAxisParam}
-								class="w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-								{#each paramOptions as p}
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-								{/each}
-							</select>
-						</label>
-					</div>
-					<TableEditor
-						data={corr2.data}
-						dimmed={!loaded.corr}
-						xAxisValues={corr2.xAxisValues}
-						yAxisValues={corr2.yAxisValues}
-						numCols={corr2.numCols}
-						numRows={corr2.numRows}
-						decimals={1}
-						colorGradient={true}
-						gradientMin={50}
-						gradientMax={150}
-						xAxisLabel={enumParamShortName(settings.corr2AxisParam)}
-						yAxisLabel={enumParamShortName(settings.corr2YAxisParam)}
-						liveCursorX={liveVal(settings.corr2AxisParam)}
-						liveCursorY={liveVal(settings.corr2YAxisParam)}
-						resizable={true}
-						onResize={onCorr2Resize}
-						onDataChange={onCorr2DataChange}
-						onAxisChange={onCorr2AxisChange}
-					/>
-					<button onclick={saveCorrTables} disabled={saving}
-						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{saving ? t('common.saving') : t('common.saveToDevice')}
-					</button>
-					{@render restoreBtn(restoreCorr)}
-				</div>
-			{/if}
-		</section>
-
-		<!-- 6. BIAS (feedforward) — основная карта (особенно для электронного актуатора) -->
+		<!-- 4. BIAS (feedforward) — основная карта (особенно для электронного актуатора) -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('biasTable')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.biasTable')}<HelpTip key="help.boost.biasTable" /></span>
@@ -1116,7 +1128,7 @@
 			{/if}
 		</section>
 
-		<!-- 7. PID регулятор (Ki, windup, D-фильтр) -->
+		<!-- 5. PID регулятор (Ki, windup, D-фильтр + таблицы Kp/Kd) -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('pid')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.pid')}<HelpTip key="help.boost.pidSection" /></span>
@@ -1147,84 +1159,77 @@
 						{saving ? t('common.saving') : t('common.saveToDevice')}
 					</button>
 					{@render restoreBtn(restoreSettings)}
-				</div>
-			{/if}
-		</section>
 
-		<!-- 8. Kp/Kd по зонам (динамика регулятора) -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('learnTable')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.pidTables')}<HelpTip key="help.boost.pidTablesViewer" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'learnTable' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'learnTable'}
-				<div class="px-3 pb-3 space-y-4">
-					<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
-						<TableEditor
-							data={learnKpMultData}
-							dimmed={!loaded.learn}
-							xAxisValues={learnTables.kp.xAxisValues}
-							yAxisValues={learnTables.kp.yAxisValues}
-							numCols={learnTables.kp.numCols}
-							numRows={learnTables.kp.numRows}
-							decimals={1}
-							colorGradient={true}
-							gradientMin={20}
-							gradientMax={300}
-							highlight={hlKp}
-							xAxisLabel="RPM"
-							yAxisLabel="TPS"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTps}
-							resizable={true}
-							onResize={(r, c) => onLearnResize('kp', r, c)}
-							onDataChange={(d) => onLearnDataChange('kp', d)}
-							onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
-						/>
-					</div>
-					<!-- Kd Zone Table (absolute per-zone value, NOT a multiplier) -->
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
-						<TableEditor
-							data={learnKdMultData}
-							dimmed={!loaded.learn}
-							xAxisValues={learnTables.kd.xAxisValues}
-							yAxisValues={learnTables.kd.yAxisValues}
-							numCols={learnTables.kd.numCols}
-							numRows={learnTables.kd.numRows}
-							decimals={1}
-							colorGradient={true}
-							gradientMin={20}
-							gradientMax={500}
-							highlight={hlKd}
-							xAxisLabel="RPM"
-							yAxisLabel="TPS"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTps}
-							resizable={true}
-							onResize={(r, c) => onLearnResize('kd', r, c)}
-							onDataChange={(d) => onLearnDataChange('kd', d)}
-							onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
-						/>
-					</div>
-					<div class="flex gap-2 flex-wrap">
-						<button onclick={saveLearnTables} disabled={saving}
-							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-							{saving ? t('common.saving') : t('common.saveToDevice')}
-						</button>
-						{@render restoreBtn(restoreLearn)}
-						<button onclick={resetLearnTable} disabled={saving}
-							class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
-							{t('boost.resetLearn')}
-						</button>
+					<!-- Kp/Kd по зонам (динамика регулятора) — часть регулятора, но таблицы -->
+					<div class="pt-3 border-t border-[var(--color-dash-border)]/30 space-y-4">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.pidTables')}<HelpTip key="help.boost.pidTablesViewer" /></span>
+						<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
+						<div class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
+							<TableEditor
+								data={learnKpMultData}
+								dimmed={!loaded.learn}
+								xAxisValues={learnTables.kp.xAxisValues}
+								yAxisValues={learnTables.kp.yAxisValues}
+								numCols={learnTables.kp.numCols}
+								numRows={learnTables.kp.numRows}
+								decimals={1}
+								colorGradient={true}
+								gradientMin={20}
+								gradientMax={300}
+								highlight={hlKp}
+								xAxisLabel="RPM"
+								yAxisLabel="TPS"
+								liveCursorX={liveRpm}
+								liveCursorY={liveTps}
+								resizable={true}
+								onResize={(r, c) => onLearnResize('kp', r, c)}
+								onDataChange={(d) => onLearnDataChange('kp', d)}
+								onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
+							/>
+						</div>
+						<!-- Kd Zone Table (absolute per-zone value, NOT a multiplier) -->
+						<div class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
+							<TableEditor
+								data={learnKdMultData}
+								dimmed={!loaded.learn}
+								xAxisValues={learnTables.kd.xAxisValues}
+								yAxisValues={learnTables.kd.yAxisValues}
+								numCols={learnTables.kd.numCols}
+								numRows={learnTables.kd.numRows}
+								decimals={1}
+								colorGradient={true}
+								gradientMin={20}
+								gradientMax={500}
+								highlight={hlKd}
+								xAxisLabel="RPM"
+								yAxisLabel="TPS"
+								liveCursorX={liveRpm}
+								liveCursorY={liveTps}
+								resizable={true}
+								onResize={(r, c) => onLearnResize('kd', r, c)}
+								onDataChange={(d) => onLearnDataChange('kd', d)}
+								onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
+							/>
+						</div>
+						<div class="flex gap-2 flex-wrap">
+							<button onclick={saveLearnTables} disabled={saving}
+								class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+								{saving ? t('common.saving') : t('common.saveToDevice')}
+							</button>
+							{@render restoreBtn(restoreLearn)}
+							<button onclick={resetLearnTable} disabled={saving}
+								class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
+								{t('boost.resetLearn')}
+							</button>
+						</div>
 					</div>
 				</div>
 			{/if}
 		</section>
 
-		<!-- 9. Safety -->
+		<!-- 6. Safety -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('safety')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.safety')}<HelpTip key="help.boost.safetySection" /></span>
@@ -1264,7 +1269,7 @@
 			{/if}
 		</section>
 
-		<!-- 10. Спул / переход в PID (deltaMAP + гистерезис + упреждение K + транзиент) -->
+		<!-- 7. Спул / переход в PID (deltaMAP + гистерезис + упреждение K + транзиент) -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('deltaMap')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.deltaMap')}<HelpTip key="help.boost.deltaMap" /></span>
@@ -1331,7 +1336,7 @@
 			{/if}
 		</section>
 
-		<!-- 11. Обучение -->
+		<!-- 8. Обучение -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('learning')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learning')}<HelpTip key="help.boost.learningSection" /></span>
