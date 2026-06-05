@@ -464,9 +464,8 @@ export default {
 	'boost.corr2': 'Correction 2',
 	'boost.corrAxis': 'Axis parameter',
 	'boost.pid': 'PID Settings',
-	'boost.kp': 'Kp (proportional)',
-	'boost.ki': 'Ki (integral)',
-	'boost.kd': 'Kd (derivative)',
+	'boost.ki': 'Ki (integral gain)',
+	'boost.pidScalarsHint': 'Kp and Kd now live only in the PID tables below (per-zone, absolute values) — that is what the controller actually uses. Left here: Ki (integral gain), I-term limit and D filter.',
 	'boost.iWindup': 'I-term windup limit',
 	'boost.dFilter': 'D-term filter (0-1)',
 	'boost.safety': 'Safety',
@@ -508,9 +507,9 @@ export default {
 	'boost.learnStabilityTime': 'Stability time (ms)',
 	'boost.learnTable': 'Learn Table (I-term %)',
 	'boost.pidTables': 'PID Tables',
-	'boost.learnTableKi': 'I-term Learn Table (%)',
-	'boost.learnTableKp': 'Kp Zone Table',
-	'boost.learnTableKd': 'Kd Zone Table',
+	'boost.learnTableKi': 'I-term: integral baseline per zone (%)',
+	'boost.learnTableKp': 'Kp per zone (absolute)',
+	'boost.learnTableKd': 'Kd per zone (absolute)',
 	'boost.resetLearn': 'Reset All Learn Tables',
 	'boost.resetLearnConfirm': 'Reset all learned values? (Ki=50%, KpMult=100%, KdMult=100%)',
 	'boost.calibration': 'Calibration (live learning)',
@@ -603,9 +602,7 @@ export default {
 	'help.boost.knockSignal': 'Which parameter provides knock retard (degrees). When above threshold, target pressure is reduced.',
 
 	// Boost: PID
-	'help.boost.kp': 'Proportional gain. Higher = faster response but more overshoot. Base value before zone multiplier.',
-	'help.boost.ki': 'Integral gain. Eliminates steady-state error. Higher = faster correction but can overshoot.',
-	'help.boost.kd': 'Derivative gain. Dampens oscillations. Higher = more damping. Base value before zone multiplier.',
+	'help.boost.ki': 'Integral gain (scalar, global). Eliminates steady-state error: integral accumulates as Ki·error·dt. NOTE: the "I-term: integral baseline" table below is NOT the Ki gain — it is the learned per-zone integral baseline (%) the integral warm-starts to when entering a zone. Kp and Kd now live only in the PID tables (per-zone).',
 	'help.boost.iWindup': 'Max absolute value of the I-term accumulator (%). Prevents integral windup during large errors.',
 	'help.boost.dFilter': 'Low-pass filter alpha for D-term (0-1). Lower = more filtering, less noise sensitivity.',
 
@@ -647,9 +644,9 @@ export default {
 	'help.boost.corrAxis': 'Parameter used as the X-axis for this 1D correction table (e.g., IAT, coolant temp).',
 
 	// Boost: Learn tables
-	'help.boost.learnTableKi': 'Learned I-term values per RPM×TPS zone. 50% = neutral. Updated when error is small and stable.',
-	'help.boost.learnTableKpMult': 'Learned Kp multipliers per RPM×TPS zone. 100% = no change from base Kp.',
-	'help.boost.learnTableKdMult': 'Learned Kd multipliers per RPM×TPS zone. 100% = no change from base Kd.',
+	'help.boost.learnTableKi': 'Integral (I-term) baseline per RPM×TPS zone, in % duty — this is NOT the Ki gain. The integral warm-starts to it when entering a zone. 0 = neutral. Learned when error is small and stable.',
+	'help.boost.learnTableKp': 'Per-zone Kp (RPM×TPS), ABSOLUTE value — this is what the controller uses (P-term = Kp·error). Not a multiplier. Learned by auto-tune (P6) or edited by hand.',
+	'help.boost.learnTableKd': 'Per-zone Kd (RPM×TPS), ABSOLUTE value — damping (D-term = −Kd·d(MAP)/dt). Not a multiplier. Learned by auto-tune or edited by hand.',
 
 	// CAN Receive
 	'help.canRx.canId': 'CAN message ID in hexadecimal (e.g., 5E8). Standard 11-bit or Extended 29-bit.',
@@ -762,7 +759,7 @@ export default {
 	'help.boost.learningSection': 'Zone-based auto-learning. When enabled, the controller adapts Ki, Kp, and Kd in a 12×12 RPM×TPS table.',
 	'help.boost.kpKdSection': 'Advanced zone learning settings for Kp/Kd multipliers. Controls oscillation detection and persistent error adaptation.',
 	'help.boost.transientSection': 'Temporarily increase Kp during rapid RPM changes (acceleration) for faster boost response.',
-	'help.boost.pidTablesViewer': 'Ki I-term, Kp and Kd tables (12×12 RPM×TPS), absolute values. Editable: tweak by hand and save to device (persists immediately, like BIAS). During calibration, learning will overwrite manual edits.',
+	'help.boost.pidTablesViewer': 'The tables the PID actually runs on (12×12 RPM×TPS): Kp and Kd are absolute per-zone values (not multipliers); I-term is the integral baseline (%). Editable by hand and saved to device immediately (like BIAS). With learning enabled, auto-tune will overwrite manual edits.',
 
 	// Display: Sections & Fields
 	'help.display.gridLayout': 'Visual editor for the TFT display layout. Tap a cell to select it for editing. Drag rows or cells in the preview to reorder. Each row must total exactly 12 columns. Add rows with the button below; delete rows or cells via the editor panel.',

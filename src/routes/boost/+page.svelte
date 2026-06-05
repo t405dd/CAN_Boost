@@ -1085,20 +1085,11 @@
 			</button>
 			{#if activeSection === 'pid'}
 				<div class="px-3 pb-3 space-y-2">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.pidScalarsHint')}</p>
 					<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.kp')}<HelpTip key="help.boost.kp" /></span>
-							<input type="number" step="0.1" bind:value={settings.kp}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
 						<label class="space-y-1">
 							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.ki')}<HelpTip key="help.boost.ki" /></span>
 							<input type="number" step="0.1" bind:value={settings.ki}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.kd')}<HelpTip key="help.boost.kd" /></span>
-							<input type="number" step="0.1" bind:value={settings.kd}
 								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 						</label>
 						<label class="space-y-1">
@@ -1301,7 +1292,7 @@
 							onAxisChange={(a, v) => onLearnAxisChange('ki', a, v)}
 						/>
 					</div>
-					<!-- Kp Multiplier Learn Table -->
+					<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
 					<div class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
 						<TableEditor
@@ -1325,7 +1316,7 @@
 							onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
 						/>
 					</div>
-					<!-- Kd Multiplier Learn Table -->
+					<!-- Kd Zone Table (absolute per-zone value, NOT a multiplier) -->
 					<div class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
 						<TableEditor
