@@ -11,6 +11,7 @@
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import { resizeTable } from '$lib/components/table-editor/resize';
+	import { loadCachedTable, saveCachedTable } from '$lib/stores/boost-table-cache';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, enumToFirmwareName, enumToPwaName, firmwareNameToEnum } from '$lib/utils/param-mapping';
 	import { getCacheSlotDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
@@ -30,12 +31,14 @@
 	// не загружен — settingsLoaded=false и UI показывает «читаю с устройства», а НЕ дефолты.
 	let settings = $state<BoostControllerSettings>(defaultBoostSettings());
 	let settingsLoaded = $derived(boostSettings.loaded);
-	let targetTable = $state<BoostTable>(defaultTargetTable());
-	let corr1 = $state<BoostCorrectionTable>(defaultCorrTable());
-	let corr2 = $state<BoostCorrectionTable>(defaultCorrTable());
-	let learnTables = $state<BoostPidTables>(defaultLearnTables());
-	let biasTable = $state<BoostTable>(defaultBiasTable());
-	let deltaMapTable = $state<BoostCorrectionTable>(defaultDeltaMapTable());
+	// Инициализация из кэша (последняя карта с устройства) → показываем её затемнённой до прихода
+	// свежих данных по BLE; нет кэша (первый запуск) → дефолт. См. boost-table-cache + флаги loaded.*.
+	let targetTable = $state<BoostTable>(loadCachedTable<BoostTable>('target') ?? defaultTargetTable());
+	let corr1 = $state<BoostCorrectionTable>(loadCachedTable<BoostCorrectionTable>('corr1') ?? defaultCorrTable());
+	let corr2 = $state<BoostCorrectionTable>(loadCachedTable<BoostCorrectionTable>('corr2') ?? defaultCorrTable());
+	let learnTables = $state<BoostPidTables>(loadCachedTable<BoostPidTables>('learn') ?? defaultLearnTables());
+	let biasTable = $state<BoostTable>(loadCachedTable<BoostTable>('bias') ?? defaultBiasTable());
+	let deltaMapTable = $state<BoostCorrectionTable>(loadCachedTable<BoostCorrectionTable>('delta') ?? defaultDeltaMapTable());
 
 	// --- Карты буста: состояние в общем сторе $lib/stores/boost-maps (шарится с шапкой PWA). ---
 	// Плоская (НЕ $state) переменная: $effect тогда зависит только от boostMaps.reloadEpoch (без самопетли).
@@ -155,27 +158,27 @@
 	}
 
 	function defaultTargetTable(): BoostTable {
-		const cols = 12, rows = 12;
-		const xAxis = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000];
-		const yAxis = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100];
+		const cols = 8, rows = 8;
+		const xAxis = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000];
+		const yAxis = [0, 15, 30, 45, 60, 75, 90, 100];
 		const data = Array.from({ length: rows }, () => Array(cols).fill(100));
 		return { numCols: cols, numRows: rows, xAxisValues: xAxis, yAxisValues: yAxis, data };
 	}
 
 	function defaultCorrTable(): BoostCorrectionTable {
 		return {
-			numCols: 12,
+			numCols: 8,
 			numRows: 8,
-			xAxisValues: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100],
+			xAxisValues: [0, 15, 30, 45, 60, 75, 90, 100],
 			yAxisValues: [0, 15, 30, 45, 60, 75, 90, 105],
-			data: Array.from({ length: 8 }, () => Array(12).fill(100))
+			data: Array.from({ length: 8 }, () => Array(8).fill(100))
 		};
 	}
 
 	function defaultLearnTable(fillValue: number = 50): BoostTable {
-		const cols = 12, rows = 12;
-		const xAxis = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000];
-		const yAxis = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100];
+		const cols = 8, rows = 8;
+		const xAxis = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000];
+		const yAxis = [0, 15, 30, 45, 60, 75, 90, 100];
 		const data = Array.from({ length: rows }, () => Array(cols).fill(fillValue));
 		return { numCols: cols, numRows: rows, xAxisValues: xAxis, yAxisValues: yAxis, data };
 	}
@@ -218,12 +221,15 @@
 	}
 	async function loadTarget() {
 		const tgt = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_TARGET);
-		if (tgt) targetTable = tgt;
+		if (tgt) { targetTable = tgt; saveCachedTable('target', tgt); }
 		loaded.target = true;
 	}
 	async function loadCorr() {
 		const corrs = await readJsonConfig<BoostCorrectionTable[]>(SVC_BOOST, CHR_BOOST_CORR);
-		if (corrs && corrs.length >= 2) { corr1 = corrs[0]; corr2 = corrs[1]; }
+		if (corrs && corrs.length >= 2) {
+			corr1 = corrs[0]; corr2 = corrs[1];
+			saveCachedTable('corr1', corr1); saveCachedTable('corr2', corr2);
+		}
 		loaded.corr = true;
 	}
 	async function loadLearn() {
@@ -237,20 +243,21 @@
 			};
 		}
 		loaded.learn = true;
+		saveCachedTable('learn', $state.snapshot(learnTables));
 		// Always-on: фиксируем базлайн при первом открытии → подсветка покажет, что обучение
 		// меняет, пока смотришь (стрим live-дельт мутирует таблицы). Сброс — по «Сохранить сейчас».
 		if (!calBaseline.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
 	}
 	async function loadBias() {
 		const bias = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS);
-		if (bias) biasTable = bias;
+		if (bias) { biasTable = bias; saveCachedTable('bias', bias); }
 		loaded.bias = true;
 		if (!calBaseline.bias) snapBaseline('bias');
 	}
 	async function loadDelta() {
 		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
 		// firmware не шлёт yAxisValues для 1D deltaMap → нормализуем, иначе ресайз падал на .slice().
-		if (delta) deltaMapTable = { ...delta, yAxisValues: delta.yAxisValues ?? [] };
+		if (delta) { deltaMapTable = { ...delta, yAxisValues: delta.yAxisValues ?? [] }; saveCachedTable('delta', deltaMapTable); }
 		loaded.delta = true;
 	}
 
@@ -931,6 +938,7 @@
 				<div class="px-3 pb-3 space-y-2">
 					<TableEditor
 						data={targetTable.data}
+						dimmed={!loaded.target}
 						xAxisValues={targetTable.xAxisValues}
 						yAxisValues={targetTable.yAxisValues}
 						numCols={targetTable.numCols}
@@ -987,6 +995,7 @@
 					</div>
 					<TableEditor
 						data={corr1.data}
+						dimmed={!loaded.corr}
 						xAxisValues={corr1.xAxisValues}
 						yAxisValues={corr1.yAxisValues}
 						numCols={corr1.numCols}
@@ -1043,6 +1052,7 @@
 					</div>
 					<TableEditor
 						data={corr2.data}
+						dimmed={!loaded.corr}
 						xAxisValues={corr2.xAxisValues}
 						yAxisValues={corr2.yAxisValues}
 						numCols={corr2.numCols}
@@ -1261,6 +1271,7 @@
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
 						<TableEditor
 							data={learnKpMultData}
+							dimmed={!loaded.learn}
 							xAxisValues={learnTables.kp.xAxisValues}
 							yAxisValues={learnTables.kp.yAxisValues}
 							numCols={learnTables.kp.numCols}
@@ -1285,6 +1296,7 @@
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
 						<TableEditor
 							data={learnKdMultData}
+							dimmed={!loaded.learn}
 							xAxisValues={learnTables.kd.xAxisValues}
 							yAxisValues={learnTables.kd.yAxisValues}
 							numCols={learnTables.kd.numCols}
@@ -1331,6 +1343,7 @@
 					<div class="overflow-x-auto">
 						<TableEditor
 							data={biasTable.data}
+							dimmed={!loaded.bias}
 							xAxisValues={biasTable.xAxisValues}
 							yAxisValues={biasTable.yAxisValues}
 							numCols={biasTable.numCols}
@@ -1367,6 +1380,7 @@
 					<div class="overflow-x-auto">
 						<TableEditor
 							data={deltaMapTable.data}
+							dimmed={!loaded.delta}
 							xAxisValues={deltaMapTable.xAxisValues}
 							yAxisValues={[]}
 							numCols={deltaMapTable.numCols}

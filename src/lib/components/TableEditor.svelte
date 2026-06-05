@@ -28,6 +28,8 @@
 		maxRows?: number;
 		minCols?: number;
 		maxCols?: number;
+		/** Затемнить таблицу (данные ещё не подтверждены устройством — показываем кэш/дефолт). */
+		dimmed?: boolean;
 		onDataChange?: (data: number[][]) => void;
 		onAxisChange?: (axis: 'x' | 'y', values: number[]) => void;
 		onResize?: (rows: number, cols: number) => void;
@@ -54,6 +56,7 @@
 		maxRows = 16,
 		minCols = 2,
 		maxCols = 16,
+		dimmed = false,
 		onDataChange,
 		onAxisChange,
 		onResize
@@ -659,7 +662,8 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="table-editor" tabindex="0" role="grid" onkeydown={onKeyDown}>
+<div class="table-editor" tabindex="0" role="grid" onkeydown={onKeyDown}
+	style:opacity={dimmed ? '0.4' : '1'} style:transition="opacity 0.25s ease">
 	<!-- Dimension control (resizable tables only) -->
 	{#if resizable && !readOnly}
 		<div class="flex items-center gap-2 mb-2 text-[10px] flex-wrap">
