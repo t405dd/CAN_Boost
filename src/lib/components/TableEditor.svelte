@@ -230,8 +230,35 @@
 	let touchStartPos: { x: number; y: number } | null = null;
 	let lastTouchSelectEnd = 0;           // время конца тач-выделения — глушим синтетический mousedown после него
 
+	// --- Автопрокрутка к краю во время тач-выделения ---
+	// Палец у границы видимой области → таблица сама прокручивается, чтобы дотянуться до ячеек за
+	// кадром (без этого нельзя охватить таблицу шире/выше экрана). Горизонталь скроллим в самом
+	// контейнере (.table-scroll), вертикаль — в ближайшем вертикальном скроллере (<main>).
+	const EDGE_ZONE_PX = 48;    // ширина краевой зоны, где включается автопрокрутка
+	const EDGE_MAX_SPEED = 14;  // макс. шаг прокрутки за кадр (px)
+	let autoScrollRAF: number | null = null;
+	let lastTouchClientPos: { x: number; y: number } | null = null;
+	let vScroller: HTMLElement | null = null;
+
 	function clearLongPress() {
 		if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+	}
+
+	// Ближайший вертикально-прокручиваемый предок (в нашем layout — <main class="overflow-y-auto">).
+	function findScrollableY(el: HTMLElement | null): HTMLElement | null {
+		let n: HTMLElement | null = el?.parentElement ?? null;
+		while (n) {
+			const oy = getComputedStyle(n).overflowY;
+			if (oy === 'auto' || oy === 'scroll') return n;
+			n = n.parentElement;
+		}
+		return null;
+	}
+	// Шаг автопрокрутки по одной оси: <0 у нижней/левой границы зоны, >0 у верхней/правой; скорость ∝ глубине в зоне.
+	function edgeDelta(pos: number, lo: number, hi: number): number {
+		if (pos < lo + EDGE_ZONE_PX) return -Math.ceil(Math.min(1, (lo + EDGE_ZONE_PX - pos) / EDGE_ZONE_PX) * EDGE_MAX_SPEED);
+		if (pos > hi - EDGE_ZONE_PX) return  Math.ceil(Math.min(1, (pos - (hi - EDGE_ZONE_PX)) / EDGE_ZONE_PX) * EDGE_MAX_SPEED);
+		return 0;
 	}
 
 	// Тактильный + звуковой отклик в момент входа в режим выделения. Оба best-effort: vibrate есть не
@@ -266,6 +293,33 @@
 	// Svelte-экшен на контейнере таблицы: вешает тач-слушатели НЕпассивно (нужен preventDefault, чтобы
 	// не скроллить во время выделения). touchstart оставляем пассивным — там preventDefault не нужен.
 	function touchSelect(node: HTMLElement) {
+		function startAutoScroll() {
+			if (autoScrollRAF == null) autoScrollRAF = requestAnimationFrame(autoScrollTick);
+		}
+		function stopAutoScroll() {
+			if (autoScrollRAF != null) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
+		}
+		// Кадр автопрокрутки: пока палец в краевой зоне — прокручиваем контейнер(ы) и пересчитываем
+		// ячейку под (неподвижным) пальцем, дотягивая выделение до ушедших за кадр ячеек.
+		function autoScrollTick() {
+			autoScrollRAF = null;
+			if (!touchSelecting || !lastTouchClientPos || !anchor) return;
+			const { x, y } = lastTouchClientPos;
+			const hr = node.getBoundingClientRect();
+			const dx = edgeDelta(x, hr.left, hr.right);
+			let dy = 0;
+			if (vScroller) {
+				const vr = vScroller.getBoundingClientRect();
+				dy = edgeDelta(y, vr.top, vr.bottom);
+			}
+			if (dx) node.scrollLeft += dx;
+			if (dy && vScroller) vScroller.scrollTop += dy;
+			if (dx || dy) {
+				const cell = cellFromPoint(x, y);
+				if (cell) { selection = rectSelection(anchor, cell); selectionEnd = cell; }
+			}
+			autoScrollRAF = requestAnimationFrame(autoScrollTick);
+		}
 		function onStart(e: TouchEvent) {
 			clearLongPress();
 			if (readOnly || e.touches.length !== 1) return;   // мультитач (пинч-зум) игнорируем
@@ -281,6 +335,9 @@
 				selectionEnd = cell;
 				selection = [cell];
 				lastClickCell = null;                          // отменяем детект двойного тапа
+				lastTouchClientPos = { x: tp.clientX, y: tp.clientY };
+				vScroller = findScrollableY(node);
+				startAutoScroll();
 				selectFeedback();
 			}, LONG_PRESS_MS);
 		}
@@ -289,6 +346,7 @@
 			if (!tp) return;
 			if (touchSelecting && anchor) {
 				e.preventDefault();                            // не скроллим, пока тянем выделение
+				lastTouchClientPos = { x: tp.clientX, y: tp.clientY };   // питает автопрокрутку у края
 				const cell = cellFromPoint(tp.clientX, tp.clientY);
 				if (cell) { selection = rectSelection(anchor, cell); selectionEnd = cell; }
 				return;
@@ -301,9 +359,12 @@
 		}
 		function onEnd() {
 			clearLongPress();
+			stopAutoScroll();
 			if (touchSelecting) lastTouchSelectEnd = Date.now();   // взвести глушилку синтетического mousedown
 			touchSelecting = false;
 			touchStartPos = null;
+			lastTouchClientPos = null;
+			vScroller = null;
 		}
 		node.addEventListener('touchstart', onStart, { passive: true });
 		node.addEventListener('touchmove', onMove, { passive: false });
@@ -316,6 +377,7 @@
 				node.removeEventListener('touchend', onEnd);
 				node.removeEventListener('touchcancel', onEnd);
 				clearLongPress();
+				stopAutoScroll();
 			}
 		};
 	}
