@@ -265,6 +265,7 @@ export interface BoostControllerSettings {
 	rpmSignalParam: number;
 	tpsSignalParam: number;
 	knockSignalParam: number;
+	cltSignalParam: number;    // P7: источник CLT для гейта прогрева (0 = PARAM_NONE = без гейта)
 	corr1AxisParam: number;
 	corr1YAxisParam: number;
 	corr2AxisParam: number;
@@ -286,6 +287,10 @@ export interface BoostControllerSettings {
 	// Phase-based control (SPOOL / PID / OVERBOOST)
 	phaseHysteresis: number;   // гистерезис зоны PID, множитель (1.1 = 10%)
 	learnBiasRate: number;     // скорость обучения BIAS таблицы (EMA)
+	// P7: always-on adaptive
+	learnMinClt: number;            // °C: ниже не учим (гейт прогрева; cltSignalParam=NONE → без гейта)
+	learnSaveIntervalMin: number;   // мин между авто-сейвами (5..30)
+	learnSaveMaxTps: number;        // % TPS: авто-сейв только ниже
 }
 
 export interface BoostTable {

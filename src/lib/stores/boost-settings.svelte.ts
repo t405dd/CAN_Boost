@@ -29,6 +29,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		rpmSignalParam: 16,    // PARAM_CACHE_SLOT_1 = cache slot 1 (rpm)
 		tpsSignalParam: 18,    // PARAM_CACHE_SLOT_3 = cache slot 3 (tps)
 		knockSignalParam: 0,   // PARAM_NONE
+		cltSignalParam: 0,     // PARAM_NONE (P7: гейт прогрева выключен, пока не выбран источник)
 		corr1AxisParam: 0,
 		corr1YAxisParam: 0,
 		corr2AxisParam: 0,
@@ -46,7 +47,10 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		transientGain: 0.5,
 		dRpmFilterAlpha: 0.1,
 		phaseHysteresis: 1.1,
-		learnBiasRate: 0.05
+		learnBiasRate: 0.05,
+		learnMinClt: 60,
+		learnSaveIntervalMin: 10,
+		learnSaveMaxTps: 5
 	};
 }
 

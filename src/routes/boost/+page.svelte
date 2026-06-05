@@ -2,9 +2,9 @@
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
 	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP,
-		SVC_SYSTEM, CHR_COMMAND, CHR_DEVICE_INFO, CMD_BOOST_CAL_START, CMD_BOOST_CAL_SAVE, CMD_BOOST_CAL_DISCARD } from '$lib/ble/uuids';
+		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_SAVE_NOW, CMD_BOOST_COMMIT_BASELINE, CMD_BOOST_REVERT_BASELINE } from '$lib/ble/uuids';
 	import { onLearnDelta, type LearnDelta } from '$lib/stores/boost-learn-stream.svelte';
-	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables, DeviceInfo } from '$lib/types/config';
+	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
 	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
 	import { boostSettings, loadBoostSettings, defaultBoostSettings } from '$lib/stores/boost-settings.svelte';
 	import { calBaseline, snapCalBaseline, clearCalBaselines } from '$lib/stores/boost-calibration.svelte';
@@ -46,12 +46,27 @@
 	let statusMsg = $state('');
 	let activeSection = $state<string | null>(null);
 
-	// --- Режим калибровки (обучение на лету). На дисплее это были кнопки на TFT;
-	//     здесь — команды по BLE (CHR_COMMAND 0x20/0x21/0x22). ---
-	let calibrating = $state(false);
-	let calStatus = $state('');
-
 	let isConnected = $derived(bleState.status === 'connected');
+
+	// --- Пресет «Скорость калибровки»: один контрол вместо россыпи rate-настроек обучения. ---
+	// Пишет существующие поля настроек: темпы обучения BIAS/Ki, доля сдвига к авто-Kp/Kd (P6) и окно.
+	// Детекция волн (раскачки) — автоматическая в прошивке (P6), порогов на UI нет.
+	const CAL_PRESETS = [
+		{ key: 'boost.calGentle' as const, biasRate: 0.02, rate: 0.02, kpRate: 0.2, kdRate: 0.2, stability: 500 },
+		{ key: 'boost.calNormal' as const, biasRate: 0.03, rate: 0.03, kpRate: 0.3, kdRate: 0.3, stability: 300 },
+		{ key: 'boost.calFast' as const,   biasRate: 0.05, rate: 0.05, kpRate: 0.5, kdRate: 0.5, stability: 200 }
+	];
+	function applyCalPreset(p: (typeof CAL_PRESETS)[number]) {
+		settings.learnBiasRate = p.biasRate;
+		settings.learnRate = p.rate;
+		settings.learnKpRate = p.kpRate;
+		settings.learnKdRate = p.kdRate;
+		settings.learnStabilityTimeMs = p.stability;
+	}
+	let activeCalPreset = $derived(CAL_PRESETS.findIndex(p =>
+		p.biasRate === settings.learnBiasRate && p.rate === settings.learnRate &&
+		p.kpRate === settings.learnKpRate && p.kdRate === settings.learnKdRate &&
+		p.stability === settings.learnStabilityTimeMs));
 	// Get short param name from enum value (for axis labels)
 	function enumParamShortName(enumVal: number): string {
 		const pwaName = enumToPwaName(enumVal);
@@ -230,14 +245,15 @@
 			};
 		}
 		loaded.learn = true;
-		// Таблица открыта во время калибровки впервые → зафиксировать базлайн (для оценки изменения).
-		if (calibrating && !calBaseline.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
+		// Always-on: фиксируем базлайн при первом открытии → подсветка покажет, что обучение
+		// меняет, пока смотришь (стрим live-дельт мутирует таблицы). Сброс — по «Сохранить сейчас».
+		if (!calBaseline.ki) { snapBaseline('ki'); snapBaseline('kp'); snapBaseline('kd'); }
 	}
 	async function loadBias() {
 		const bias = await readJsonConfig<BoostTable>(SVC_BOOST, CHR_BOOST_BIAS);
 		if (bias) biasTable = bias;
 		loaded.bias = true;
-		if (calibrating && !calBaseline.bias) snapBaseline('bias');
+		if (!calBaseline.bias) snapBaseline('bias');
 	}
 	async function loadDelta() {
 		const delta = await readJsonConfig<BoostCorrectionTable>(SVC_BOOST, CHR_BOOST_DELTA_MAP);
@@ -469,60 +485,37 @@
 		}
 	}
 
-	// --- Калибровка (обучение на лету) через CHR_COMMAND ---
-	async function startCalibration() {
+	// --- P7: always-on adaptive. Обучение идёт всегда (флаг «Включить» в настройках); ритуала
+	//     старт/стоп нет. Здесь — только ручные действия через CHR_COMMAND. ---
+	async function saveLearnNow() {
 		try {
-			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_START);
-			calibrating = true;
-			// Снимаем базлайн ВСЕХ обучаемых таблиц (Ki/Kp/Kd + BIAS) на старте = последнее сохранённое.
-			// Грузим их разом (один раз), чтобы потом ходить по таблицам по одной и видеть суммарное
-			// изменение КАЖДОЙ от начала калибровки, а не от момента её открытия.
+			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_SAVE_NOW);
+			clearBaselines();   // сохранили → отсчёт подсветки дельт с этого момента
+			showStatus(t('boost.learnSavedNow'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		}
+	}
+	async function commitBaseline() {
+		if (!confirm(t('boost.commitBaselineConfirm'))) return;
+		try {
+			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_COMMIT_BASELINE);
+			showStatus(t('boost.baselineCommitted'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		}
+	}
+	async function revertBaseline() {
+		if (!confirm(t('boost.revertBaselineConfirm'))) return;
+		try {
+			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_REVERT_BASELINE);
 			clearBaselines();
-			calStatus = t('boost.calBaselining');
-			await loadLearn();   // Ki/Kp/Kd (+ snapBaseline внутри: calibrating && базлайн пуст)
-			await loadBias();    // BIAS
-			calStatus = t('boost.calStarted');
+			await new Promise((r) => setTimeout(r, 900));  // дать устройству применить эталон (файловый I/O в controlTask)
+			await reloadAfterCalibration();                 // перечитать таблицы с устройства
+			showStatus(t('boost.baselineReverted'));
 		} catch (e) {
-			calStatus = (e as Error).message;
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
 		}
-		setTimeout(() => calStatus = '', 3000);
-	}
-
-	async function saveCalibration() {
-		try {
-			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_SAVE);
-			calibrating = false;
-			clearBaselines();   // сохранили в контроллер → цвета дельт пропадают
-			calStatus = t('boost.calSaved');
-			await reloadAfterCalibration();  // перечитать обученные таблицы с устройства
-		} catch (e) {
-			calStatus = (e as Error).message;
-		}
-		setTimeout(() => calStatus = '', 3000);
-	}
-
-	async function discardCalibration() {
-		try {
-			await writeUint8(SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_CAL_DISCARD);
-			calibrating = false;
-			clearBaselines();   // отменили → цвета дельт пропадают
-			calStatus = t('boost.calDiscarded');
-			await reloadAfterCalibration();
-		} catch (e) {
-			calStatus = (e as Error).message;
-		}
-		setTimeout(() => calStatus = '', 3000);
-	}
-
-	// Состояние калибровки живёт в прошивке (g_boostCalibrationActive), а локальный флаг
-	// `calibrating` пересоздаётся при каждом входе на страницу → после ухода/возврата он бы
-	// сбросился в false, хотя калибровка на устройстве ВСЁ ЕЩЁ идёт. Поэтому при подключении
-	// читаем реальное состояние из DeviceInfo (поле `calibrating`) и восстанавливаем флаг.
-	async function syncCalibrationState() {
-		try {
-			const info = await readJsonConfig<DeviceInfo>(SVC_SYSTEM, CHR_DEVICE_INFO);
-			if (info && typeof info.calibrating === 'boolean') calibrating = info.calibrating;
-		} catch { /* устройство может не отдать — оставляем как есть */ }
 	}
 
 	// --- Data change callbacks ---
@@ -638,7 +631,6 @@
 			loaded = { target: false, corr: false, learn: false, bias: false, delta: false };
 			if (!boostSettings.loaded) loadBoostSettings();
 			if (!boostMaps.loaded) loadBoostMaps();
-			void syncCalibrationState();   // восстановить реальный статус калибровки с устройства
 			if (activeSection) ensureSectionData(activeSection);
 		}
 		if (!isConnected) {
@@ -660,7 +652,6 @@
 		if (typeof document === 'undefined') return;
 		const refresh = () => {
 			if (document.visibilityState !== 'visible' || !isConnected) return;
-			void syncCalibrationState();   // статус калибровки мог измениться, пока вкладка была скрыта
 			if (!activeSection) return;
 			markSectionStale(activeSection);
 			void ensureSectionData(activeSection);
@@ -722,41 +713,6 @@
 				<span class="text-xs text-[var(--color-dash-text-dim)] ml-auto">{statusMsg}</span>
 			{/if}
 		</div>
-
-		<!-- Калибровка (обучение Ki/Kp/Kd + BIAS на лету) -->
-		<section class="rounded-lg border p-3 space-y-2 {calibrating ? 'bg-[var(--color-dash-warn)]/10 border-[var(--color-dash-warn)]/40' : 'bg-[var(--color-dash-card)] border-[var(--color-dash-border)]/50'}">
-			<div class="flex items-center justify-between">
-				<span class="text-xs uppercase tracking-wider inline-flex items-center gap-1 {calibrating ? 'text-[var(--color-dash-warn)] font-bold' : 'text-[var(--color-dash-text-dim)]'}">
-					{t('boost.calibration')}
-					{#if calibrating}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-warn)] animate-pulse"></span>{/if}
-				</span>
-				{#if calStatus}<span class="text-[10px] text-[var(--color-dash-text-dim)]">{calStatus}</span>{/if}
-			</div>
-			<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.calibrationHint')}</p>
-				<p class="text-[10px] text-[var(--color-dash-text-dim)] italic">{t('boost.calibrationShared')}</p>
-				{#if calibrating}<p class="text-[10px] text-[var(--color-dash-accent)]">{t('boost.calLiveUpdate')}</p>{/if}
-			<div class="flex items-center gap-2 flex-wrap">
-				{#if !calibrating}
-					<button onclick={startCalibration}
-						class="px-3 py-1.5 text-xs rounded font-bold bg-[var(--color-dash-warn)]/15 text-[var(--color-dash-warn)] border border-[var(--color-dash-warn)]/30 hover:bg-[var(--color-dash-warn)]/25 transition-colors">
-						{t('boost.calStart')}
-					</button>
-				{:else}
-					<button onclick={saveCalibration}
-						class="px-3 py-1.5 text-xs rounded font-bold bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] border border-[var(--color-dash-success)]/30 hover:bg-[var(--color-dash-success)]/25 transition-colors">
-						{t('boost.calSave')}
-					</button>
-					<button onclick={discardCalibration}
-						class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:bg-[var(--color-dash-border)] transition-colors">
-						{t('boost.calDiscard')}
-					</button>
-				{/if}
-				<button onclick={resetLearnTable} disabled={saving}
-					class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/10 text-[var(--color-dash-danger)] border border-[var(--color-dash-danger)]/20 hover:bg-[var(--color-dash-danger)]/20 transition-colors disabled:opacity-40 ml-auto">
-					{t('boost.calResetLearn')}
-				</button>
-			</div>
-		</section>
 
 		<!-- 1. Включить бустконтроллер + актуатор + CAN-выход (аккордеон) -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
@@ -952,6 +908,15 @@
 
 								{/each}
 
+							</select>
+						</label>
+						<label class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.cltSignal')}<HelpTip key="help.boost.cltSignal" /></span>
+							<select bind:value={settings.cltSignalParam}
+								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
+								{#each paramOptions as p}
+									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
+								{/each}
 							</select>
 						</label>
 					</div>
@@ -1208,78 +1173,57 @@
 						<input type="checkbox" bind:checked={settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
 						<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnEnable')}<HelpTip key="help.boost.learnEnable" /></span>
 					</label>
-					<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnRate')}<HelpTip key="help.boost.learnRate" /></span>
-							<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnRate}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnErrorThreshold')}<HelpTip key="help.boost.learnErrorThreshold" /></span>
-							<input type="number" step="0.5" bind:value={settings.learnErrorThreshold}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnStabilityTime')}<HelpTip key="help.boost.learnStabilityTime" /></span>
-							<input type="number" step="100" bind:value={settings.learnStabilityTimeMs}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
+					<!-- Один регулятор скорости калибровки (3 пресета). Остальное — авто (P6). -->
+					<div class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.calSpeed')}<HelpTip key="help.boost.calSpeed" /></span>
+						<div class="flex gap-2">
+							{#each CAL_PRESETS as p, i}
+								<button onclick={() => applyCalPreset(p)}
+									class="flex-1 px-2 py-1.5 text-[11px] rounded transition-colors
+										{activeCalPreset === i
+											? 'bg-[var(--color-dash-accent)] text-black font-bold'
+											: 'bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)]'}">
+									{t(p.key)}
+								</button>
+							{/each}
+						</div>
+						<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.calSpeedHint')}</p>
 					</div>
 
-					<!-- Kp/Kd Zone Learning -->
+					<!-- P7: автообучение всегда активно (при «Включить»); авто-сейв с гейтами + эталон -->
 					<div class="pt-2 border-t border-[var(--color-dash-border)]/30 space-y-2">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.kpKdLearning')}<HelpTip key="help.boost.kpKdSection" /></span>
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.autoLearn')}<HelpTip key="help.boost.autoLearn" /></span>
 						<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnKpRate')}<HelpTip key="help.boost.learnKpRate" /></span>
-								<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnKpRate}
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase">{t('boost.learnMinClt')}</span>
+								<input type="number" step="1" bind:value={settings.learnMinClt}
 									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 							</label>
 							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnKdRate')}<HelpTip key="help.boost.learnKdRate" /></span>
-								<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnKdRate}
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase">{t('boost.learnSaveInterval')}</span>
+								<input type="number" step="1" min="5" max="30" bind:value={settings.learnSaveIntervalMin}
 									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 							</label>
 							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.kpRange')}<HelpTip key="help.boost.kpRange" /></span>
-								<div class="flex gap-1 items-center">
-									<input type="number" step="0.1" min="0.01" bind:value={settings.kpMin}
-										class="w-16 px-1 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-									<span class="text-[10px] text-[var(--color-dash-text-dim)]">–</span>
-									<input type="number" step="0.5" min="0.1" bind:value={settings.kpMax}
-										class="w-16 px-1 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-								</div>
-							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.kdRange')}<HelpTip key="help.boost.kdRange" /></span>
-								<div class="flex gap-1 items-center">
-									<input type="number" step="0.01" min="0" bind:value={settings.kdMin}
-										class="w-16 px-1 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-									<span class="text-[10px] text-[var(--color-dash-text-dim)]">–</span>
-									<input type="number" step="0.1" min="0" bind:value={settings.kdMax}
-										class="w-16 px-1 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-								</div>
-							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.oscillationThreshold')}<HelpTip key="help.boost.oscillationThreshold" /></span>
-								<input type="number" step="1" min="1" max="10" bind:value={settings.oscillationThreshold}
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase">{t('boost.learnSaveMaxTps')}</span>
+								<input type="number" step="1" min="0" bind:value={settings.learnSaveMaxTps}
 									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.oscillationWindow')}<HelpTip key="help.boost.oscillationWindow" /></span>
-								<input type="number" step="100" bind:value={settings.oscillationWindowMs}
-									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.persistentErrorTime')}<HelpTip key="help.boost.persistentErrorTime" /></span>
-								<input type="number" step="500" bind:value={settings.persistentErrorTimeMs}
-									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.persistentErrorKpa')}<HelpTip key="help.boost.persistentErrorKpa" /></span>
-								<input type="number" step="0.5" bind:value={settings.persistentErrorMinKpa}
-									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							</label>
+						</div>
+						<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.autoLearnHint')}</p>
+						<div class="flex gap-2 flex-wrap">
+							<button onclick={saveLearnNow} disabled={!isConnected}
+								class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors disabled:opacity-40">
+								{t('boost.learnSaveNow')}
+							</button>
+							<button onclick={commitBaseline} disabled={!isConnected}
+								class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] hover:bg-[var(--color-dash-border)]/60 transition-colors disabled:opacity-40">
+								{t('boost.commitBaseline')}
+							</button>
+							<button onclick={revertBaseline} disabled={!isConnected}
+								class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-danger)]/10 text-[var(--color-dash-danger)] border border-[var(--color-dash-danger)]/20 hover:bg-[var(--color-dash-danger)]/20 transition-colors disabled:opacity-40">
+								{t('boost.revertBaseline')}
+							</button>
 						</div>
 					</div>
 

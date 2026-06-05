@@ -56,11 +56,11 @@ export const USER_PARAM_BLE_OFFSET = 200;
 // Must match BLE_DEVICE_NAME_PREFIX in firmware/can_boost/constants.h
 export const BLE_DEVICE_NAME_PREFIX = 'CAN_BC';
 
-// System command bytes (CHR_COMMAND). Calibration commands (0x20-0x23) are
-// CAN_Boost-specific (headless boost calibration over BLE).
+// System command bytes (CHR_COMMAND). Boost learning commands are CAN_Boost-specific.
+// P7 always-on adaptive: обучение идёт всегда (нет старт/стоп-ритуала).
 export const CMD_RESTART = 0x01;
 export const CMD_FACTORY_RESET = 0x02;
-export const CMD_BOOST_CAL_START = 0x20;
-export const CMD_BOOST_CAL_SAVE = 0x21;
-export const CMD_BOOST_CAL_DISCARD = 0x22;
-export const CMD_BOOST_CAL_RESET_LEARN = 0x23;
+export const CMD_BOOST_SAVE_NOW = 0x21;        // сохранить накопленное обучение сейчас
+export const CMD_BOOST_CAL_RESET_LEARN = 0x23; // сброс таблиц Ki/Kp/Kd к дефолтам
+export const CMD_BOOST_COMMIT_BASELINE = 0x24; // зафиксировать текущее как «эталон»
+export const CMD_BOOST_REVERT_BASELINE = 0x25; // откатить к «эталону»
