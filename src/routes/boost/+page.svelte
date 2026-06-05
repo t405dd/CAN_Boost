@@ -293,7 +293,8 @@
 	const restoreCorr     = () => restoreFromFlash(loadCorr);
 	const restoreLearn    = () => restoreFromFlash(loadLearn);
 	const restoreBias     = () => restoreFromFlash(loadBias);
-	const restoreDelta    = () => restoreFromFlash(loadDelta);
+	// Восстанавливает оба источника секции DeltaMAP: таблицу + параметры фазы (boost_settings).
+	const restoreDelta    = () => restoreFromFlash(async () => { await loadDelta(); await loadSettings(); });
 	const restoreMaps     = () => restoreFromFlash(loadBoostMaps);
 
 	async function saveSettings() {
@@ -390,11 +391,16 @@
 		}
 	}
 
-	async function saveDeltaMapTable() {
+	// DeltaMAP-секция хранит И таблицу (CHR_BOOST_DELTA_MAP), И параметры фазы
+	// (phaseHysteresis/learnBiasRate — часть boost_settings, разные характеристики). Одна кнопка
+	// «Сохранить» пишет оба, чтобы не путать пользователя двумя кнопками сохранения.
+	async function saveDeltaSection() {
 		saving = true;
 		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_DELTA_MAP, deltaMapTable);
-			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+			const okTbl = await writeJsonConfig(SVC_BOOST, CHR_BOOST_DELTA_MAP, deltaMapTable);
+			const okSet = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settings);
+			if (okSet) boostSettings.value = $state.snapshot(settings);  // стор = то, что на устройстве
+			showStatus(okTbl && okSet ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
 			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
 		} finally {
@@ -1474,16 +1480,11 @@
 						</label>
 					</div>
 					<div class="flex gap-2">
-						<button onclick={saveDeltaMapTable} disabled={saving}
+						<button onclick={saveDeltaSection} disabled={saving}
 							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 							{saving ? t('common.saving') : t('common.saveToDevice')}
 						</button>
 						{@render restoreBtn(restoreDelta)}
-						<button onclick={saveSettings} disabled={saving}
-							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-							{t('boost.savePhaseSettings')}
-						</button>
-						{@render restoreBtn(restoreSettings)}
 					</div>
 				</div>
 			{/if}
