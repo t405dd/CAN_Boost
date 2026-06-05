@@ -1173,6 +1173,22 @@
 						<input type="checkbox" bind:checked={settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
 						<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnEnable')}<HelpTip key="help.boost.learnEnable" /></span>
 					</label>
+					<!-- P7: что именно обучаем (под общим «Включить»). Каждая галочка гейтит свой блок в прошивке. -->
+					<div class="pl-6 space-y-1.5 {settings.learnEnabled ? '' : 'opacity-40 pointer-events-none'}">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnWhat')}<HelpTip key="help.boost.learnWhat" /></span>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={settings.learnBias} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnBias')}<HelpTip key="help.boost.learnBias" /></span>
+						</label>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={settings.learnKi} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnKi')}<HelpTip key="help.boost.learnKi" /></span>
+						</label>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={settings.learnGains} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnGains')}<HelpTip key="help.boost.learnGains" /></span>
+						</label>
+					</div>
 					<!-- Один регулятор скорости калибровки (3 пресета). Остальное — авто (P6). -->
 					<div class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.calSpeed')}<HelpTip key="help.boost.calSpeed" /></span>

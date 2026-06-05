@@ -477,6 +477,10 @@ export default {
 	'boost.rateLimit': 'Rate limit (%/sec)',
 	'boost.learning': 'Learning',
 	'boost.learnEnable': 'Enable learning',
+	'boost.learnWhat': 'What to learn',
+	'boost.learnBias': 'BIAS (feedforward)',
+	'boost.learnKi': 'Ki (zone integral)',
+	'boost.learnGains': 'Kp/Kd (dynamics)',
 	'boost.calSpeed': 'Calibration speed',
 	'boost.calGentle': 'Gentle',
 	'boost.calNormal': 'Normal',
@@ -616,6 +620,10 @@ export default {
 
 	// Boost: Learning
 	'help.boost.learnEnable': 'Enable zone-based learning for all PID coefficients (Ki I-term, Kp, Kd). Each RPM×TPS zone is learned independently.',
+	'help.boost.learnWhat': 'Separate learning gates under the master "Enable". Uncheck to freeze part of the tables and learn the rest. Useful: first nail BIAS with Kp/Kd frozen, then the reverse.',
+	'help.boost.learnBias': 'Learn the BIAS table — feedforward (equilibrium duty over RPM×target boost). This is "where to set the actuator" at steady state. Fixes systematic under/overboost. Covers both continuous (P5) and coarse (P0) pre-learning.',
+	'help.boost.learnKi': 'Learn the Ki base — accumulated integral remainder per RPM×TPS zone (what BIAS did not cover). Learned inside the stability window |err|<threshold.',
+	'help.boost.learnGains': 'Learn the dynamic Kp/Kd gains via the boost-oscillation relay tracker (Tyreus–Luyben). Damps hunting/MAP waves. Detune only (lowers Kp) — safe. Does not touch feedforward.',
 	'help.boost.learnRate': 'Ki learn rate (0–1). Each cycle (25 Hz) while error in-band: table += rate × (integral − table). Higher = bigger step, faster but jitterier.',
 	'help.boost.learnErrorThreshold': 'Error must be below this (kPa) for zone values to be saved to learn tables.',
 	'help.boost.learnStabilityTime': 'How long (ms) error must stay in-band before Ki/Kp/Kd are written (BIAS learns continuously). Lower = learns more often.',
