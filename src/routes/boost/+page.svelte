@@ -1079,7 +1079,44 @@
 			{/if}
 		</section>
 
-		<!-- 6. PID Settings -->
+		<!-- 6. BIAS (feedforward) — основная карта (особенно для электронного актуатора) -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('biasTable')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.biasTable')}<HelpTip key="help.boost.biasTable" /></span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'biasTable' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'biasTable'}
+				<div class="px-3 pb-3 space-y-3">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.biasTableDesc')}</p>
+					<div class="overflow-x-auto">
+						<TableEditor
+							data={biasTable.data}
+							dimmed={!loaded.bias}
+							xAxisValues={biasTable.xAxisValues}
+							yAxisValues={biasTable.yAxisValues}
+							numCols={biasTable.numCols}
+							numRows={biasTable.numRows}
+							xAxisLabel="RPM"
+							yAxisLabel="Target kPa"
+							liveCursorX={liveRpm}
+							liveCursorY={liveTargetMap}
+							highlight={hlBias}
+							resizable={true}
+							onResize={onBiasResize}
+							onDataChange={onBiasDataChange}
+							onAxisChange={onBiasAxisChange}
+						/>
+					</div>
+					<button onclick={saveBiasTable} disabled={saving}
+						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+						{saving ? t('common.saving') : t('common.saveToDevice')}
+					</button>
+					{@render restoreBtn(restoreBias)}
+				</div>
+			{/if}
+		</section>
+
+		<!-- 7. PID регулятор (Ki, windup, D-фильтр) -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('pid')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.pid')}<HelpTip key="help.boost.pidSection" /></span>
@@ -1114,7 +1151,80 @@
 			{/if}
 		</section>
 
-		<!-- 7. Safety -->
+		<!-- 8. Kp/Kd по зонам (динамика регулятора) -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('learnTable')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.pidTables')}<HelpTip key="help.boost.pidTablesViewer" /></span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'learnTable' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'learnTable'}
+				<div class="px-3 pb-3 space-y-4">
+					<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
+					<div class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
+						<TableEditor
+							data={learnKpMultData}
+							dimmed={!loaded.learn}
+							xAxisValues={learnTables.kp.xAxisValues}
+							yAxisValues={learnTables.kp.yAxisValues}
+							numCols={learnTables.kp.numCols}
+							numRows={learnTables.kp.numRows}
+							decimals={1}
+							colorGradient={true}
+							gradientMin={20}
+							gradientMax={300}
+							highlight={hlKp}
+							xAxisLabel="RPM"
+							yAxisLabel="TPS"
+							liveCursorX={liveRpm}
+							liveCursorY={liveTps}
+							resizable={true}
+							onResize={(r, c) => onLearnResize('kp', r, c)}
+							onDataChange={(d) => onLearnDataChange('kp', d)}
+							onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
+						/>
+					</div>
+					<!-- Kd Zone Table (absolute per-zone value, NOT a multiplier) -->
+					<div class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
+						<TableEditor
+							data={learnKdMultData}
+							dimmed={!loaded.learn}
+							xAxisValues={learnTables.kd.xAxisValues}
+							yAxisValues={learnTables.kd.yAxisValues}
+							numCols={learnTables.kd.numCols}
+							numRows={learnTables.kd.numRows}
+							decimals={1}
+							colorGradient={true}
+							gradientMin={20}
+							gradientMax={500}
+							highlight={hlKd}
+							xAxisLabel="RPM"
+							yAxisLabel="TPS"
+							liveCursorX={liveRpm}
+							liveCursorY={liveTps}
+							resizable={true}
+							onResize={(r, c) => onLearnResize('kd', r, c)}
+							onDataChange={(d) => onLearnDataChange('kd', d)}
+							onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
+						/>
+					</div>
+					<div class="flex gap-2 flex-wrap">
+						<button onclick={saveLearnTables} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
+						</button>
+						{@render restoreBtn(restoreLearn)}
+						<button onclick={resetLearnTable} disabled={saving}
+							class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
+							{t('boost.resetLearn')}
+						</button>
+					</div>
+				</div>
+			{/if}
+		</section>
+
+		<!-- 9. Safety -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('safety')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.safety')}<HelpTip key="help.boost.safetySection" /></span>
@@ -1154,7 +1264,74 @@
 			{/if}
 		</section>
 
-		<!-- 8. Learning -->
+		<!-- 10. Спул / переход в PID (deltaMAP + гистерезис + упреждение K + транзиент) -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('deltaMap')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.deltaMap')}<HelpTip key="help.boost.deltaMap" /></span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'deltaMap' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'deltaMap'}
+				<div class="px-3 pb-3 space-y-3">
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.deltaMapDesc')}</p>
+					<div class="overflow-x-auto">
+						<TableEditor
+							data={deltaMapTable.data}
+							dimmed={!loaded.delta}
+							xAxisValues={deltaMapTable.xAxisValues}
+							yAxisValues={[]}
+							numCols={deltaMapTable.numCols}
+							numRows={1}
+							xAxisLabel="RPM"
+							yAxisLabel=""
+							liveCursorX={liveRpm}
+							resizable={true}
+							maxRows={1}
+							onResize={onDeltaMapResize}
+							onDataChange={onDeltaMapDataChange}
+							onAxisChange={onDeltaMapAxisChange}
+						/>
+					</div>
+					<!-- Phase control params -->
+					<div class="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--color-dash-border)]/30">
+						<label class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseHysteresis')}<HelpTip key="help.boost.phaseHysteresis" /></span>
+							<input type="number" step="0.01" min="1.0" max="2.0" bind:value={settings.phaseHysteresis}
+								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+						</label>
+						<label class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseRateLead')}<HelpTip key="help.boost.phaseRateLead" /></span>
+							<input type="number" step="0.02" min="0" max="1" bind:value={settings.phaseRateLead}
+								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+						</label>
+					</div>
+					<!-- dRPM/dt Transient Boost (на резком наборе временно усиливает Kp; для электронного 0) -->
+					<div class="pt-2 border-t border-[var(--color-dash-border)]/30 space-y-2">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.transientBoost')}<HelpTip key="help.boost.transientSection" /></span>
+						<div class="grid grid-cols-2 gap-2">
+							<label class="space-y-1">
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.transientGain')}<HelpTip key="help.boost.transientGain" /></span>
+								<input type="number" step="0.1" min="0" max="2" bind:value={settings.transientGain}
+									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+							</label>
+							<label class="space-y-1">
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.dRpmFilterAlpha')}<HelpTip key="help.boost.dRpmFilterAlpha" /></span>
+								<input type="number" step="0.05" min="0.01" max="1" bind:value={settings.dRpmFilterAlpha}
+									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+							</label>
+						</div>
+					</div>
+					<div class="flex gap-2">
+						<button onclick={saveDeltaSection} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
+						</button>
+						{@render restoreBtn(restoreDelta)}
+					</div>
+				</div>
+			{/if}
+		</section>
+
+		<!-- 11. Обучение -->
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('learning')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learning')}<HelpTip key="help.boost.learningSection" /></span>
@@ -1239,23 +1416,6 @@
 						</div>
 					</div>
 
-					<!-- dRPM/dt Transient Boost -->
-					<div class="pt-2 border-t border-[var(--color-dash-border)]/30 space-y-2">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.transientBoost')}<HelpTip key="help.boost.transientSection" /></span>
-						<div class="grid grid-cols-2 gap-2">
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.transientGain')}<HelpTip key="help.boost.transientGain" /></span>
-								<input type="number" step="0.1" min="0" max="2" bind:value={settings.transientGain}
-									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							</label>
-							<label class="space-y-1">
-								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.dRpmFilterAlpha')}<HelpTip key="help.boost.dRpmFilterAlpha" /></span>
-								<input type="number" step="0.05" min="0.01" max="1" bind:value={settings.dRpmFilterAlpha}
-									class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							</label>
-						</div>
-					</div>
-
 					<button onclick={saveSettings} disabled={saving}
 						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 						{saving ? t('common.saving') : t('common.saveToDevice')}
@@ -1265,165 +1425,5 @@
 			{/if}
 		</section>
 
-		<!-- 9. Learn Tables Viewer -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('learnTable')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.pidTables')}<HelpTip key="help.boost.pidTablesViewer" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'learnTable' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'learnTable'}
-				<div class="px-3 pb-3 space-y-4">
-					<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>
-						<TableEditor
-							data={learnKpMultData}
-							dimmed={!loaded.learn}
-							xAxisValues={learnTables.kp.xAxisValues}
-							yAxisValues={learnTables.kp.yAxisValues}
-							numCols={learnTables.kp.numCols}
-							numRows={learnTables.kp.numRows}
-							decimals={1}
-							colorGradient={true}
-							gradientMin={20}
-							gradientMax={300}
-							highlight={hlKp}
-							xAxisLabel="RPM"
-							yAxisLabel="TPS"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTps}
-							resizable={true}
-							onResize={(r, c) => onLearnResize('kp', r, c)}
-							onDataChange={(d) => onLearnDataChange('kp', d)}
-							onAxisChange={(a, v) => onLearnAxisChange('kp', a, v)}
-						/>
-					</div>
-					<!-- Kd Zone Table (absolute per-zone value, NOT a multiplier) -->
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKd')}<HelpTip key="help.boost.learnTableKd" /></span>
-						<TableEditor
-							data={learnKdMultData}
-							dimmed={!loaded.learn}
-							xAxisValues={learnTables.kd.xAxisValues}
-							yAxisValues={learnTables.kd.yAxisValues}
-							numCols={learnTables.kd.numCols}
-							numRows={learnTables.kd.numRows}
-							decimals={1}
-							colorGradient={true}
-							gradientMin={20}
-							gradientMax={500}
-							highlight={hlKd}
-							xAxisLabel="RPM"
-							yAxisLabel="TPS"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTps}
-							resizable={true}
-							onResize={(r, c) => onLearnResize('kd', r, c)}
-							onDataChange={(d) => onLearnDataChange('kd', d)}
-							onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
-						/>
-					</div>
-					<div class="flex gap-2 flex-wrap">
-						<button onclick={saveLearnTables} disabled={saving}
-							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-							{saving ? t('common.saving') : t('common.saveToDevice')}
-						</button>
-						{@render restoreBtn(restoreLearn)}
-						<button onclick={resetLearnTable} disabled={saving}
-							class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-danger)]/15 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25 transition-colors disabled:opacity-40">
-							{t('boost.resetLearn')}
-						</button>
-					</div>
-				</div>
-			{/if}
-		</section>
-
-		<!-- 10. BIAS Table (feedforward, auto-learned) -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('biasTable')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.biasTable')}<HelpTip key="help.boost.biasTable" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'biasTable' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'biasTable'}
-				<div class="px-3 pb-3 space-y-3">
-					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.biasTableDesc')}</p>
-					<div class="overflow-x-auto">
-						<TableEditor
-							data={biasTable.data}
-							dimmed={!loaded.bias}
-							xAxisValues={biasTable.xAxisValues}
-							yAxisValues={biasTable.yAxisValues}
-							numCols={biasTable.numCols}
-							numRows={biasTable.numRows}
-							xAxisLabel="RPM"
-							yAxisLabel="Target kPa"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTargetMap}
-							highlight={hlBias}
-							resizable={true}
-							onResize={onBiasResize}
-							onDataChange={onBiasDataChange}
-							onAxisChange={onBiasAxisChange}
-						/>
-					</div>
-					<button onclick={saveBiasTable} disabled={saving}
-						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{saving ? t('common.saving') : t('common.saveToDevice')}
-					</button>
-					{@render restoreBtn(restoreBias)}
-				</div>
-			{/if}
-		</section>
-
-		<!-- 11. DeltaMAP Table (PID activation zone) -->
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('deltaMap')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.deltaMap')}<HelpTip key="help.boost.deltaMap" /></span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'deltaMap' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'deltaMap'}
-				<div class="px-3 pb-3 space-y-3">
-					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.deltaMapDesc')}</p>
-					<div class="overflow-x-auto">
-						<TableEditor
-							data={deltaMapTable.data}
-							dimmed={!loaded.delta}
-							xAxisValues={deltaMapTable.xAxisValues}
-							yAxisValues={[]}
-							numCols={deltaMapTable.numCols}
-							numRows={1}
-							xAxisLabel="RPM"
-							yAxisLabel=""
-							liveCursorX={liveRpm}
-							resizable={true}
-							maxRows={1}
-							onResize={onDeltaMapResize}
-							onDataChange={onDeltaMapDataChange}
-							onAxisChange={onDeltaMapAxisChange}
-						/>
-					</div>
-					<!-- Phase control params -->
-					<div class="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--color-dash-border)]/30">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseHysteresis')}<HelpTip key="help.boost.phaseHysteresis" /></span>
-							<input type="number" step="0.01" min="1.0" max="2.0" bind:value={settings.phaseHysteresis}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseRateLead')}<HelpTip key="help.boost.phaseRateLead" /></span>
-							<input type="number" step="0.02" min="0" max="1" bind:value={settings.phaseRateLead}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-					</div>
-					<div class="flex gap-2">
-						<button onclick={saveDeltaSection} disabled={saving}
-							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-							{saving ? t('common.saving') : t('common.saveToDevice')}
-						</button>
-						{@render restoreBtn(restoreDelta)}
-					</div>
-				</div>
-			{/if}
-		</section>
 	{/if}
 </div>
