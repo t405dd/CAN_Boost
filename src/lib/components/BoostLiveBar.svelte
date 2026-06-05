@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Persistent header strip with the live boost picture the user always wants in view:
-	// RPM, current MAP, and the boost error (target − actual).
+	// RPM, current MAP, and the boost error (actual − target: above target = +, below = −).
 	// MAP/RPM come from the configured signal slots (boost_settings); error is the
 	// streamed system param BST_ERR (enum 5).
 	import { liveData } from '$lib/stores/live-data.svelte';
