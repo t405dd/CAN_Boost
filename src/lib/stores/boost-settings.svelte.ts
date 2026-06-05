@@ -49,6 +49,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		transientGain: 0.5,
 		dRpmFilterAlpha: 0.1,
 		phaseHysteresis: 1.1,
+		phaseRateLead: 0.0,
 		learnBiasRate: 0.05,
 		learnMinClt: 60,
 		learnSaveIntervalMin: 10,

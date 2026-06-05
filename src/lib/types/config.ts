@@ -288,6 +288,7 @@ export interface BoostControllerSettings {
 	dRpmFilterAlpha: number;
 	// Phase-based control (SPOOL / PID / OVERBOOST)
 	phaseHysteresis: number;   // гистерезис зоны PID, множитель (1.1 = 10%)
+	phaseRateLead: number;     // с: упреждение SPOOL→PID по скорости роста MAP (delta += k·dMAP/dt)
 	learnBiasRate: number;     // скорость обучения BIAS таблицы (EMA)
 	// P7: always-on adaptive
 	learnMinClt: number;            // °C: ниже не учим (гейт прогрева; cltSignalParam=NONE → без гейта)

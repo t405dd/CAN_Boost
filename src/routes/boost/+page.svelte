@@ -1388,6 +1388,11 @@
 								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
 						</label>
 						<label class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.phaseRateLead')}<HelpTip key="help.boost.phaseRateLead" /></span>
+							<input type="number" step="0.02" min="0" max="1" bind:value={settings.phaseRateLead}
+								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+						</label>
+						<label class="space-y-1">
 							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.learnBiasRate')}<HelpTip key="help.boost.learnBiasRate" /></span>
 							<input type="number" step="0.01" min="0" max="1" bind:value={settings.learnBiasRate}
 								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
