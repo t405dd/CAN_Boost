@@ -24,7 +24,13 @@ function chunkedReadTimeout(expectedLen: number): number {
 // ждём перед READ_REQ, а само chunked-чтение при провале повторяем. Это и есть причина, по которой
 // boost_settings/can_receive «не дочитывались» на телефоне и UI показывал дефолты.
 const CHUNKED_SUBSCRIBE_SETTLE_MS = 300;
-const CHUNKED_READ_ATTEMPTS = 2;
+// Потеря data-чанка под потоком live-data раньше стоила ПОЛНЫЙ 15-сек таймаут (receivedBytes
+// не доходил до totalLen, END тоже терялся → залипание). Теперь потеря детектится сразу (разрыв
+// seq) или по бездействию (CHUNKED_INACTIVITY_MS) и ретраится мгновенно — поэтому попыток больше.
+const CHUNKED_READ_ATTEMPTS = 4;
+// Если за это время не пришло НИ ОДНОГО нового чанка — считаем чтение зависшим (потерян хвост/END)
+// и ретраим, не дожидаясь общего таймаута. Это и есть лекарство от «долгой загрузки таблиц».
+const CHUNKED_INACTIVITY_MS = 2500;
 
 // Android Chrome часто отклоняет САМ readValue() сразу после коннекта с «GATT operation failed for
 // unknown reason» (конфликт с потоком live-нотификаций / неустоявшийся GATT). На десктопе этого нет.
@@ -116,12 +122,25 @@ async function readChunkedViaNotify<T>(
 			if (resolved) return;
 			resolved = true;
 			clearTimeout(timer);
+			clearTimeout(inactTimer);
 			char.removeEventListener('characteristicvaluechanged', onNotification);
 			char.stopNotifications().catch(() => {});
 			resolve(result);
 		}
 
 		let receivedBytes = 0;
+		let expectedSeq = 0;                              // следующий ожидаемый chunkIndex (детект потери)
+		let inactTimer: ReturnType<typeof setTimeout>;
+
+		// Сброс таймера бездействия: любой пришедший notify (header/chunk) продлевает ожидание.
+		// Срабатывание = поток чанков оборвался (потерян хвост/END) → ретраим сразу.
+		function resetInactivity() {
+			clearTimeout(inactTimer);
+			inactTimer = setTimeout(() => {
+				console.warn(`[BLE Transfer] Stall: нет новых чанков ${CHUNKED_INACTIVITY_MS}ms (получено ${receivedBytes}/${totalLen}, ${chunks.length} чанков) — ретрай`);
+				finish(null);
+			}, CHUNKED_INACTIVITY_MS);
+		}
 
 		// Собрать накопленные чанки в JSON и завершить. Вызывается ЛИБО по приходу всех байт
 		// (receivedBytes>=totalLen), ЛИБО по маркеру CHUNK_END — что наступит раньше. На десктопе
@@ -142,6 +161,7 @@ async function readChunkedViaNotify<T>(
 		function onNotification(event: Event) {
 			const target = event.target as BluetoothRemoteGATTCharacteristic;
 			if (!target.value) return;
+			resetInactivity();                            // любой notify продлевает окно ожидания
 			const view = target.value;
 			const cmd = view.getUint8(0);
 
@@ -149,6 +169,15 @@ async function readChunkedViaNotify<T>(
 				totalLen = view.getUint32(1, true);
 				console.log(`[BLE Transfer] Chunk header: ${totalLen} bytes total`);
 			} else if (cmd === BLE_CHUNK_DATA && view.byteLength > 3) {
+				// chunkIndex в байтах [1..2] (u16LE). Разрыв последовательности = потерян пакет
+				// на линке (notify дропнут под live-data) → не ждём 15с, ретраим немедленно.
+				const seq = view.getUint16(1, true);
+				if (seq !== expectedSeq) {
+					console.warn(`[BLE Transfer] Потерян чанк: ожидался seq ${expectedSeq}, пришёл ${seq} — ретрай`);
+					finish(null);
+					return;
+				}
+				expectedSeq = seq + 1;
 				const payload = new Uint8Array(
 					view.buffer, view.byteOffset + 3, view.byteLength - 3
 				);
@@ -195,6 +224,7 @@ async function readChunkedViaNotify<T>(
 			// Send read request → firmware calls sendChunkedData() via notify
 			await char.writeValueWithoutResponse(new Uint8Array([BLE_CMD_READ_REQ]));
 			console.log('[BLE Transfer] READ_REQ sent, waiting for chunks...');
+			resetInactivity();                            // взвести stall-таймер ожидания первого чанка
 		} catch (e) {
 			console.error('[BLE Transfer] Failed to start chunked read:', e);
 			finish(null);
