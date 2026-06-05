@@ -1136,7 +1136,22 @@
 			</button>
 			{#if activeSection === 'pid'}
 				<div class="px-3 pb-3 space-y-2">
-					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.pidScalarsHint')}</p>
+					<!-- Режим управления: BIAS+PID (закрытый контур) ↔ только BIAS (open-loop) -->
+					<div class="space-y-1">
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.controlMode')}<HelpTip key="help.boost.controlMode" /></span>
+						<div class="flex gap-2">
+							<button onclick={() => settings.biasOnly = false}
+								class="flex-1 px-2 py-1.5 text-[11px] rounded transition-colors {!settings.biasOnly ? 'bg-[var(--color-dash-accent)] text-black font-bold' : 'bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)]'}">
+								{t('boost.modeBiasPid')}
+							</button>
+							<button onclick={() => settings.biasOnly = true}
+								class="flex-1 px-2 py-1.5 text-[11px] rounded transition-colors {settings.biasOnly ? 'bg-[var(--color-dash-accent)] text-black font-bold' : 'bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)]'}">
+								{t('boost.modeBias')}
+							</button>
+						</div>
+						<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.controlModeHint')}</p>
+					</div>
+					<p class="text-[10px] text-[var(--color-dash-text-dim)] {settings.biasOnly ? 'opacity-40' : ''}">{t('boost.pidScalarsHint')}</p>
 					<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 						<label class="space-y-1">
 							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.ki')}<HelpTip key="help.boost.ki" /></span>

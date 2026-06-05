@@ -466,6 +466,10 @@ export default {
 	'boost.corrAxis': 'Axis parameter',
 	'boost.pid': 'PID Settings',
 	'boost.ki': 'Ki (integral gain)',
+	'boost.controlMode': 'Control mode',
+	'boost.modeBiasPid': 'BIAS + PID',
+	'boost.modeBias': 'BIAS only',
+	'boost.controlModeHint': 'BIAS+PID — closed loop (feedforward + correction). BIAS only — open loop: output = BIAS map, P/I/D disabled (tables untouched). Spool and overboost cut work in both.',
 	'boost.pidScalarsHint': 'Kp and Kd now live only in the PID tables below (per-zone, absolute values) — that is what the controller actually uses. Left here: Ki (integral gain), I-term limit and D filter.',
 	'boost.iWindup': 'I-term windup limit',
 	'boost.dFilter': 'D-term filter (0-1)',
@@ -602,6 +606,7 @@ export default {
 	'help.boost.knockSignal': 'Which parameter provides knock retard (degrees). When above threshold, target pressure is reduced.',
 
 	// Boost: PID
+	'help.boost.controlMode': 'BIAS+PID — normal closed loop: feedforward (BIAS) + P/I/D correction to target. BIAS only — open loop: output is taken DIRECTLY from the BIAS map, P/I/D contribution zeroed (your Kp/Ki/Kd tables are NOT changed, easy to revert). Handy to test/dial the BIAS map as-is. NOTE: in BIAS-only there is no feedback → no auto-correction and learning is off (nothing to learn from). Spool (100%) and overboost cut apply in both modes.',
 	'help.boost.ki': 'Integral gain (scalar, global). Eliminates steady-state error: integral accumulates as Ki·error·dt and mops up whatever BIAS got wrong. The integral is global (the per-zone integral baseline was removed). Kp and Kd live in the PID tables (per-zone).',
 	'help.boost.iWindup': 'Max absolute value of the I-term accumulator (%). Prevents integral windup during large errors.',
 	'help.boost.dFilter': 'Low-pass filter alpha for D-term (0-1). Lower = more filtering, less noise sensitivity.',

@@ -17,6 +17,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		kp: 2.0, ki: 0.5, kd: 0.3,
 		iWindupLimit: 50.0,
 		dFilterAlpha: 0.2,
+		biasOnly: false,
 		knockThreshold_deg: 2.0,
 		knockReduction_pct: 15.0,
 		canTimeoutMs: 500.0,

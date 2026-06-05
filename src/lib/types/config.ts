@@ -252,6 +252,7 @@ export interface BoostControllerSettings {
 	kd: number;
 	iWindupLimit: number;
 	dFilterAlpha: number;
+	biasOnly: boolean;     // режим «только BIAS» (open-loop): P/I/D отключены
 	// overboostLimit_kPa — per-map (см. BoostMapMeta), не входит в общие настройки
 	knockThreshold_deg: number;
 	knockReduction_pct: number;
