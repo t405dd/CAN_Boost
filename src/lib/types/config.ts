@@ -259,7 +259,6 @@ export interface BoostControllerSettings {
 	rateLimitPctPerSec: number;
 	learnEnabled: boolean;
 	learnBias: boolean;    // P7: обучать BIAS (feedforward: P5 + P0)
-	learnKi: boolean;      // P7: обучать Ki-базу (интеграл по зоне)
 	learnGains: boolean;   // P7: обучать Kp/Kd (динамика регулятора)
 	learnRate: number;
 	learnErrorThreshold: number;

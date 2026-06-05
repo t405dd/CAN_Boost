@@ -113,14 +113,6 @@
 		return d;
 	});
 
-	let learnKiData = $derived.by(() => {
-		const t = learnTables.ki;
-		const d: number[][] = [];
-		for (let r = 0; r < t.numRows; r++) {
-			d.push(t.data[r] ? [...t.data[r]] : Array(t.numCols).fill(50));
-		}
-		return d;
-	});
 	let learnKpMultData = $derived.by(() => {
 		const t = learnTables.kp;
 		const d: number[][] = [];
@@ -463,7 +455,6 @@
 		return out;
 	}
 	// Реактивно: при изменении ячеек (дельты обучения) ИЛИ базлайна — пересчёт и перерисовка.
-	let hlKi = $derived.by(() => netGrid(learnTables.ki.data, calBaseline.ki, HL_SCALE.ki));
 	let hlKp = $derived.by(() => netGrid(learnTables.kp.data, calBaseline.kp, HL_SCALE.kp));
 	let hlKd = $derived.by(() => netGrid(learnTables.kd.data, calBaseline.kd, HL_SCALE.kd));
 	let hlBias = $derived.by(() => netGrid(biasTable.data, calBaseline.bias, HL_SCALE.bias));
@@ -1172,10 +1163,6 @@
 							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnBias')}<HelpTip key="help.boost.learnBias" /></span>
 						</label>
 						<label class="flex items-center gap-2 cursor-pointer">
-							<input type="checkbox" bind:checked={settings.learnKi} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
-							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnKi')}<HelpTip key="help.boost.learnKi" /></span>
-						</label>
-						<label class="flex items-center gap-2 cursor-pointer">
 							<input type="checkbox" bind:checked={settings.learnGains} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
 							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnGains')}<HelpTip key="help.boost.learnGains" /></span>
 						</label>
@@ -1268,30 +1255,6 @@
 			</button>
 			{#if activeSection === 'learnTable'}
 				<div class="px-3 pb-3 space-y-4">
-					<!-- I-term Learn Table -->
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKi')}<HelpTip key="help.boost.learnTableKi" /></span>
-						<TableEditor
-							data={learnKiData}
-							xAxisValues={learnTables.ki.xAxisValues}
-							yAxisValues={learnTables.ki.yAxisValues}
-							numCols={learnTables.ki.numCols}
-							numRows={learnTables.ki.numRows}
-							decimals={1}
-							colorGradient={true}
-							gradientMin={0}
-							gradientMax={100}
-							highlight={hlKi}
-							xAxisLabel="RPM"
-							yAxisLabel="TPS"
-							liveCursorX={liveRpm}
-							liveCursorY={liveTps}
-							resizable={true}
-							onResize={(r, c) => onLearnResize('ki', r, c)}
-							onDataChange={(d) => onLearnDataChange('ki', d)}
-							onAxisChange={(a, v) => onLearnAxisChange('ki', a, v)}
-						/>
-					</div>
 					<!-- Kp Zone Table (absolute per-zone value, NOT a multiplier) -->
 					<div class="space-y-1">
 						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableKp')}<HelpTip key="help.boost.learnTableKp" /></span>

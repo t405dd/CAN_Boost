@@ -23,7 +23,6 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		rateLimitPctPerSec: 200.0,
 		learnEnabled: true,
 		learnBias: true,
-		learnKi: true,
 		learnGains: true,
 		learnRate: 0.05,
 		learnErrorThreshold: 5.0,

@@ -613,8 +613,11 @@
 
 	// Axis-label display: round to 1 decimal, drop trailing ".0" (e.g. 9.091 → 9.1,
 	// 38 → 38). Editing still uses the raw full-precision value (see startEdit).
-	function fmtAxis(v: number | undefined): string {
+	// Ось RPM (по подписи) показываем целыми — дробные обороты бессмысленны, а после
+	// интерполяции узлов вылезали «.x». Передаём подпись оси из X/Y вызовов.
+	function fmtAxis(v: number | undefined, label?: string): string {
 		if (v === undefined || v === null || !isFinite(v)) return '';
+		if (label === 'RPM') return String(Math.round(v));
 		return String(Math.round(v * 10) / 10);
 	}
 
@@ -775,7 +778,7 @@
 											{ySelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 										onmousedown={(e) => onCellMouseDown(dataRow, -1, e)}
 										onmouseenter={() => onCellMouseEnter(dataRow, -1)}>
-										{fmtAxis(yAxisValues?.[dataRow])}
+										{fmtAxis(yAxisValues?.[dataRow], yAxisLabel)}
 									</div>
 								{/if}
 							</td>
@@ -847,7 +850,7 @@
 										{xSelected ? 'border-[var(--color-dash-accent)] bg-[var(--color-dash-accent)]/30 text-[var(--color-dash-accent)]' : 'border-[var(--color-dash-border)]/30 bg-[var(--color-dash-accent)]/10 text-[var(--color-dash-accent)]'}"
 									onmousedown={(e) => onCellMouseDown(-1, c, e)}
 									onmouseenter={() => onCellMouseEnter(-1, c)}>
-									{fmtAxis(xAxisValues[c])}
+									{fmtAxis(xAxisValues[c], xAxisLabel)}
 								</div>
 							{/if}
 						</td>
