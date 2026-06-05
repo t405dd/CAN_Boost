@@ -123,6 +123,22 @@ async function readChunkedViaNotify<T>(
 
 		let receivedBytes = 0;
 
+		// Собрать накопленные чанки в JSON и завершить. Вызывается ЛИБО по приходу всех байт
+		// (receivedBytes>=totalLen), ЛИБО по маркеру CHUNK_END — что наступит раньше. На десктопе
+		// (WinRT) одиночный 1-байтовый END-notify под потоком live-data часто теряется, поэтому
+		// завязываться ТОЛЬКО на END нельзя — иначе чтение виснет в таймаут с уже полными данными.
+		function completeAssembly(via: string) {
+			const assembled = assembleChunks(chunks);
+			const text = new TextDecoder().decode(assembled);
+			console.log(`[BLE Transfer] Chunked read complete (${via}): ${text.length} chars, ${chunks.length} chunks`);
+			try {
+				finish(JSON.parse(text) as T);
+			} catch (e) {
+				console.error('[BLE Transfer] Chunked JSON parse error:', e);
+				finish(null);
+			}
+		}
+
 		function onNotification(event: Event) {
 			const target = event.target as BluetoothRemoteGATTCharacteristic;
 			if (!target.value) return;
@@ -143,16 +159,10 @@ async function readChunkedViaNotify<T>(
 					const pct = totalLen > 0 ? Math.round(receivedBytes * 100 / totalLen) : 0;
 					console.log(`[BLE Transfer] Chunk ${chunks.length}: ${receivedBytes}/${totalLen} bytes (${pct}%)`);
 				}
+				// Все байты получены — собираем СРАЗУ, не дожидаясь END (он может потеряться).
+				if (totalLen > 0 && receivedBytes >= totalLen) completeAssembly('all bytes');
 			} else if (cmd === BLE_CHUNK_END) {
-				const assembled = assembleChunks(chunks);
-				const text = new TextDecoder().decode(assembled);
-				console.log(`[BLE Transfer] Chunked read complete: ${text.length} chars, ${chunks.length} chunks`);
-				try {
-					finish(JSON.parse(text) as T);
-				} catch (e) {
-					console.error('[BLE Transfer] Chunked JSON parse error:', e);
-					finish(null);
-				}
+				completeAssembly('END');
 			} else {
 				// Might be a direct small notification (firmware sent data as single notify)
 				const raw = new Uint8Array(
