@@ -285,6 +285,7 @@ export default {
 	'hdr.stIdle': 'покой (пружина)',
 	'hdr.stSpool': 'спул',
 	'hdr.stPid': 'PID',
+	'hdr.stBias': 'BIAS',
 	'hdr.stCut': 'срез',
 
 	// Клиентский логгер данных

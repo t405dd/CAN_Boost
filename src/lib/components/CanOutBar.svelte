@@ -4,6 +4,7 @@
 	// state (enum 55) so it's clear WHY the output is what it is — e.g. a stale
 	// MAP/RPM signal forces a safe 0% output ("no data") rather than a real command.
 	import { liveData } from '$lib/stores/live-data.svelte';
+	import { boostSettings } from '$lib/stores/boost-settings.svelte';
 	import { PARAM_BOOST_STATE } from '$lib/ble/protocol';
 	import { t } from '$lib/i18n/index.svelte';
 
@@ -31,6 +32,12 @@
 		8: { key: 'hdr.stCut',       color: 'var(--color-dash-danger)',   warn: true }
 	};
 	let st = $derived(state === undefined ? null : (STATES[Math.round(state)] ?? null));
+
+	// В режиме «только BIAS» фаза регулирования (7) внутренне зовётся PID, но P/I/D
+	// отключены — выход чистый feedforward. Показываем «BIAS», чтобы не путать.
+	let stKey = $derived(
+		st && Math.round(state!) === 7 && boostSettings.value.biasOnly ? 'hdr.stBias' : st?.key
+	);
 </script>
 
 {#if boostOut !== undefined || co1 !== undefined}
@@ -63,7 +70,7 @@
 						<path d="M12 9v4m0 4h.01M10.3 3.86l-8.4 14.55A1.5 1.5 0 003.2 21h17.6a1.5 1.5 0 001.3-2.59L13.7 3.86a1.5 1.5 0 00-2.6 0z" />
 					</svg>
 				{/if}
-				<span class="font-bold uppercase tracking-wide">{t(st.key)}</span>
+				<span class="font-bold uppercase tracking-wide">{t(stKey)}</span>
 			</div>
 		{/if}
 	</div>

@@ -285,6 +285,7 @@ export default {
 	'hdr.stIdle': 'idle (spring)',
 	'hdr.stSpool': 'spool',
 	'hdr.stPid': 'PID',
+	'hdr.stBias': 'BIAS',
 	'hdr.stCut': 'cut',
 
 	// Client-side data logger
