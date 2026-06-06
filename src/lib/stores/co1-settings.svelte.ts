@@ -23,6 +23,8 @@ export function loadCo1Config(): Promise<boolean> {
 	_inFlight = (async () => {
 		const s = await readJsonConfig<Co1Settings>(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS);
 		if (s) {
+			// Прошивка без поля enabled (старая, до фичи выключателя CO1) → считаем CO1 включённым.
+			s.enabled = s.enabled ?? true;
 			co1Config.value = s;
 			co1Config.loaded = true;
 			co1Config.epoch++;
