@@ -13,7 +13,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		canId: 0x26A,
 		canByteOffset: 0,
 		canBigEndian: true,
-		canSendIntervalMs: 50,
+		canSendIntervalMs: 20,
 		kp: 2.0, ki: 0.5, kd: 0.3,
 		iWindupLimit: 50.0,
 		dFilterAlpha: 0.2,

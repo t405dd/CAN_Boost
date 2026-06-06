@@ -6,7 +6,7 @@ import { SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS } from '$lib/ble/uuids';
 import type { Co1Settings } from '$lib/types/config';
 
 export function defaultCo1Settings(): Co1Settings {
-	return { canId: 0x269, canByteOffset: 0, canBigEndian: true, canSendIntervalMs: 50 };
+	return { enabled: true, canId: 0x269, canByteOffset: 0, canBigEndian: true, canSendIntervalMs: 20 };
 }
 
 export const co1Config = $state({

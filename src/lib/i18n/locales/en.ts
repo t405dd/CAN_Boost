@@ -194,10 +194,11 @@ export default {
 	'canTx.cols': 'Cols',
 	'canTx.rows': 'Rows',
 	'canTx.co1Settings': 'CO1 Bus Address',
+	'canTx.co1Enabled': 'CO1 enabled',
 	'canTx.canId': 'CAN ID (hex)',
 	'canTx.canByteOffset': 'Byte offset',
 	'canTx.canBigEndian': 'Big-endian',
-	'canTx.canInterval': 'Send interval (ms)',
+	'canTx.canInterval': 'Calc & send interval (ms)',
 
 	// User Params page
 	'userParams.title': 'User Parameters',
@@ -458,7 +459,7 @@ export default {
 	'boost.canId': 'CAN ID (hex)',
 	'boost.canByteOffset': 'Byte offset',
 	'boost.canBigEndian': 'Big-endian',
-	'boost.canInterval': 'Send interval (ms)',
+	'boost.canInterval': 'Calc & send interval (ms)',
 	'boost.targetTable': 'Target MAP Table (kPa)',
 	'boost.correction': 'Correction Table',
 	'boost.corrections': 'Target corrections (advanced)',
@@ -599,7 +600,7 @@ export default {
 	'help.boost.canId': 'CAN ID (hex) for sending the duty-cycle value to the solenoid driver.',
 	'help.boost.canByteOffset': 'Starting byte position (0-6) within the 8-byte CAN frame for the duty value.',
 	'help.boost.canBigEndian': 'Byte order for the duty value: Big-endian (MSB first) or Little-endian (LSB first).',
-	'help.boost.canInterval': 'How often (ms) the duty-cycle CAN message is sent. Lower = smoother control, more bus load.',
+	'help.boost.canInterval': 'How often (ms) the PID is computed and the duty-cycle CAN message is sent — a single parameter. Lower = smoother control, more bus load.',
 
 	// Boost: Signal Sources
 	'help.boost.mapSignal': 'Which cached parameter provides the actual MAP (manifold absolute pressure) reading.',
@@ -682,10 +683,11 @@ export default {
 	'help.canTx.cols': 'Number of columns (X-axis breakpoints) in this table. Max 16.',
 	'help.canTx.rows': 'Number of rows (Y-axis breakpoints) in this 2D table. Max 16.',
 	'help.canTx.co1Settings': 'CO1 output CAN bus address settings. CO1 value is sent as a scaled uint16 (1 decimal place, max 6553.5).',
+	'help.canTx.co1Enabled': 'Master switch for the CO1 output. When off, nothing is transmitted on the CAN bus and CO1 is hidden from the header strip.',
 	'help.canTx.canId': 'CAN ID (hex) for sending the CO1 value. Default: 0x269.',
 	'help.canTx.canByteOffset': 'Starting byte (0-6) within the 8-byte CAN frame for the CO1 uint16 value.',
 	'help.canTx.canBigEndian': 'Byte order: Big-endian = MSB first (default). Little-endian = LSB first.',
-	'help.canTx.canInterval': 'How often (ms) the CO1 CAN message is sent. Lower = faster updates, more bus load.',
+	'help.canTx.canInterval': 'How often (ms) the CO1 value is computed and sent on CAN — a single parameter. Lower = faster updates, more bus load.',
 
 	// Display
 	'help.display.brightness': 'TFT backlight brightness (0-255). Lower = dimmer, saves power.',

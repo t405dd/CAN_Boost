@@ -265,8 +265,14 @@
 				</div>
 			{:else}
 			<div class="flex items-center gap-4 flex-wrap">
+				<!-- Master enable -->
+				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
+					<input type="checkbox" bind:checked={co1Settings.enabled}
+						class="accent-[var(--color-dash-accent)]" />
+					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.co1Enabled')}<HelpTip key="help.canTx.co1Enabled" /></span>
+				</label>
 				<!-- CAN ID -->
-				<div class="flex items-center gap-1.5">
+				<div class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
 					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canId')}<HelpTip key="help.canTx.canId" /></span>
 					<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) - 1; if (v >= 0) co1CanIdHex = v.toString(16).toUpperCase(); }}
 						class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
@@ -278,19 +284,19 @@
 					<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {parseInt(co1CanIdHex, 16) || 0} dec</span>
 				</div>
 				<!-- Byte offset -->
-				<label class="flex items-center gap-1.5">
+				<label class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
 					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canByteOffset')}<HelpTip key="help.canTx.canByteOffset" /></span>
 					<input type="number" min="0" max="6" bind:value={co1Settings.canByteOffset}
 						class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
 				</label>
 				<!-- Big-endian -->
-				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
+				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
 					<input type="checkbox" bind:checked={co1Settings.canBigEndian}
 						class="accent-[var(--color-dash-accent)]" />
 					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.canBigEndian')}<HelpTip key="help.canTx.canBigEndian" /></span>
 				</label>
 				<!-- Send interval -->
-				<label class="flex items-center gap-1.5">
+				<label class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
 					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canInterval')}<HelpTip key="help.canTx.canInterval" /></span>
 					<input type="number" min="10" max="1000" step="10" bind:value={co1Settings.canSendIntervalMs}
 						class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />

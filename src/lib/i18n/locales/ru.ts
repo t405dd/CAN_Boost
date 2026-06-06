@@ -194,10 +194,11 @@ export default {
 	'canTx.cols': 'Столбцы',
 	'canTx.rows': 'Строки',
 	'canTx.co1Settings': 'Адрес шины CO1',
+	'canTx.co1Enabled': 'CO1 включён',
 	'canTx.canId': 'CAN ID (hex)',
 	'canTx.canByteOffset': 'Смещение байта',
 	'canTx.canBigEndian': 'Big-endian',
-	'canTx.canInterval': 'Интервал отправки (мс)',
+	'canTx.canInterval': 'Период расчёта и отправки (мс)',
 
 	// Страница User Params
 	'userParams.title': 'Пользовательские параметры',
@@ -458,7 +459,7 @@ export default {
 	'boost.canId': 'CAN ID (hex)',
 	'boost.canByteOffset': 'Смещение байта',
 	'boost.canBigEndian': 'Big-endian',
-	'boost.canInterval': 'Интервал отправки (мс)',
+	'boost.canInterval': 'Период расчёта и отправки (мс)',
 	'boost.targetTable': 'Целевое давление MAP (кПа)',
 	'boost.correction': 'Таблица коррекции',
 	'boost.corrections': 'Коррекции цели (продвинутое)',
@@ -599,7 +600,7 @@ export default {
 	'help.boost.canId': 'CAN ID (hex) для отправки значения duty на драйвер соленоида.',
 	'help.boost.canByteOffset': 'Начальный байт (0-6) в 8-байтном CAN фрейме для значения duty.',
 	'help.boost.canBigEndian': 'Порядок байт: Big-endian (старший первый) или Little-endian (младший первый).',
-	'help.boost.canInterval': 'Как часто (мс) отправляется CAN сообщение с duty. Меньше = плавнее, больше нагрузка на шину.',
+	'help.boost.canInterval': 'Период (мс) расчёта PID и отправки CAN сообщения с duty — это один параметр. Меньше = плавнее регулирование, больше нагрузка на шину.',
 
 	// Boost: Источники сигналов
 	'help.boost.mapSignal': 'Какой параметр из кэша отдаёт значение MAP (давление во впускном коллекторе).',
@@ -685,10 +686,11 @@ export default {
 	'help.canTx.cols': 'Количество колонок (точки разрыва X-оси). Максимум 16.',
 	'help.canTx.rows': 'Количество строк (точки разрыва Y-оси) в 2D таблице. Максимум 16.',
 	'help.canTx.co1Settings': 'Настройки адреса CAN шины для выхода CO1. Значение CO1 передаётся как масштабированный uint16 (1 знак, макс 6553.5).',
+	'help.canTx.co1Enabled': 'Главный выключатель выхода CO1. Когда выключен — в CAN шину ничего не передаётся, а CO1 скрыт из шапки.',
 	'help.canTx.canId': 'CAN ID (hex) для отправки значения CO1. По умолчанию: 0x269.',
 	'help.canTx.canByteOffset': 'Начальный байт (0-6) в 8-байтовом CAN фрейме для uint16 значения CO1.',
 	'help.canTx.canBigEndian': 'Порядок байт: Big-endian = MSB первый (по умолч.). Little-endian = LSB первый.',
-	'help.canTx.canInterval': 'Интервал (мс) отправки CAN сообщения CO1. Меньше = быстрее, больше нагрузка на шину.',
+	'help.canTx.canInterval': 'Период (мс) расчёта значения CO1 и отправки его в CAN — это один параметр. Меньше = быстрее обновления, больше нагрузка на шину.',
 
 	// Display
 	'help.display.brightness': 'Яркость подсветки TFT (0-255). Меньше = темнее, экономит энергию.',

@@ -103,6 +103,7 @@ export interface CanMessageConfig {
 // --- CO1 Sender Settings ---
 
 export interface Co1Settings {
+	enabled: boolean;          // CO1 master switch: false = nothing sent to CAN, hidden in header
 	canId: number;             // CAN ID (hex) for CO1 output
 	canByteOffset: number;     // Start byte in 8-byte CAN frame (0-6)
 	canBigEndian: boolean;     // Byte order: true = Big-endian (MSB first)
