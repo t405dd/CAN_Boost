@@ -10,17 +10,27 @@
 	import { boostSettings } from '$lib/stores/boost-settings.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 
-	type SeriesKey = 'rpm' | 'map' | 'target' | 'boost' | 'bias';
-	type AxisKey = 'kpa' | 'pct' | 'rpm';
+	type SeriesKey = 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps';
+	type AxisKey = 'kpa' | 'pct' | 'rpm' | 'tps';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
-	// MAP/TGT share the kPa axis; BOOST/BIAS share the % axis; RPM is on its own.
+	// Fixed Y ranges per axis (no auto-scale) — линии не прыгают при прокрутке,
+	// MAP/TGT и BOOST/BIAS всегда в одном масштабе.
+	const AXIS_RANGE: Record<AxisKey, { min: number; max: number }> = {
+		kpa: { min: 0, max: 400 }, // MAP / target MAP
+		pct: { min: 0, max: 100 }, // boost / bias (duty %)
+		rpm: { min: 0, max: 9000 }, // RPM
+		tps: { min: 0, max: 100 } // TPS (throttle %)
+	};
+
+	// MAP/TGT share the kPa axis; BOOST/BIAS share the % axis; RPM and TPS on their own.
 	const SERIES: Series[] = [
 		{ key: 'map',    label: 'MAP',   color: '#00d4ff', axis: 'kpa' },
 		{ key: 'target', label: 'TGT',   color: '#ffd400', axis: 'kpa' },
 		{ key: 'boost',  label: 'BOOST', color: '#00ff88', axis: 'pct' },
 		{ key: 'bias',   label: 'BIAS',  color: '#ff6b35', axis: 'pct' },
-		{ key: 'rpm',    label: 'RPM',   color: '#9ca3af', axis: 'rpm' }
+		{ key: 'rpm',    label: 'RPM',   color: '#9ca3af', axis: 'rpm' },
+		{ key: 'tps',    label: 'TPS',   color: '#c084fc', axis: 'tps' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
@@ -37,7 +47,7 @@
 	};
 
 	let enabled = $state<Record<SeriesKey, boolean>>({
-		map: true, target: true, boost: true, bias: true, rpm: true
+		map: true, target: true, boost: true, bias: true, rpm: true, tps: true
 	});
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
@@ -152,7 +162,7 @@
 	$effect(() => {
 		histState.count; // redraw on new data
 		view.t0; view.t1; cursorT; cssW; cssH; // and on view / cursor / size changes
-		enabled.map; enabled.target; enabled.boost; enabled.bias; enabled.rpm;
+		enabled.map; enabled.target; enabled.boost; enabled.bias; enabled.rpm; enabled.tps;
 		draw();
 	});
 
@@ -187,34 +197,9 @@
 		const iStart = Math.max(0, lowerBound(s, t0) - 1);
 		const iEnd = Math.min(s.length, lowerBound(s, t1) + 1);
 
-		// Per-axis min/max over the visible window (NaN-skipping).
-		const ax: Record<AxisKey, { min: number; max: number }> = {
-			kpa: { min: Infinity, max: -Infinity },
-			pct: { min: Infinity, max: -Infinity },
-			rpm: { min: Infinity, max: -Infinity }
-		};
-		for (let i = iStart; i < iEnd; i++) {
-			const d = s[i];
-			for (const ser of SERIES) {
-				if (!enabled[ser.key]) continue;
-				const v = d[ser.key];
-				if (Number.isFinite(v)) {
-					const a = ax[ser.axis];
-					if (v < a.min) a.min = v;
-					if (v > a.max) a.max = v;
-				}
-			}
-		}
-		// Pad ranges; the % axis is anchored to a 0..100 floor so duty reads naturally.
-		for (const k of ['kpa', 'pct', 'rpm'] as AxisKey[]) {
-			const a = ax[k];
-			if (!Number.isFinite(a.min)) { a.min = 0; a.max = 1; continue; }
-			if (k === 'pct') { a.min = Math.min(0, a.min); a.max = Math.max(100, a.max); }
-			if (a.min === a.max) { a.min -= 1; a.max += 1; }
-			else { const p = (a.max - a.min) * 0.08; a.min -= p; a.max += p; }
-		}
+		// Fixed Y ranges per axis (no auto-scale) — см. AXIS_RANGE.
 		const yFor = (v: number, axis: AxisKey) => {
-			const a = ax[axis];
+			const a = AXIS_RANGE[axis];
 			return plotB - ((v - a.min) / (a.max - a.min || 1)) * plotH;
 		};
 

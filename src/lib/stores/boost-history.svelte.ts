@@ -15,6 +15,7 @@ import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS } from '$lib/ble/protocol';
 export interface HistSample {
 	t: number; // ms since session start (monotonic, sorted)
 	rpm: number; // NaN when the signal is absent
+	tps: number; // throttle % (configured signal)
 	map: number; // actual MAP (configured signal)
 	target: number; // BST_TGT (4) — target MAP
 	boost: number; // BST_OUT (3) — actuator duty %
@@ -55,6 +56,7 @@ function tick(): void {
 	samples.push({
 		t: Date.now() - histState.startedAt,
 		rpm: p[boostSettings.value.rpmSignalParam]?.value ?? NaN,
+		tps: p[boostSettings.value.tpsSignalParam]?.value ?? NaN,
 		map: p[boostSettings.value.mapSignalParam]?.value ?? NaN,
 		target: p[4]?.value ?? NaN,
 		boost: p[3]?.value ?? NaN,
