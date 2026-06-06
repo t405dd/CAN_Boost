@@ -18,10 +18,11 @@
 		| 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps' | 'co1'
 		| 'rpmdot' | 'mapdot' | 'tpsdot'
 		| 'knk' | 'afr' | 'afrTarget' | 'ign'
-		| 'cobase' | 'comul1' | 'comul2' | 'comul3';
+		| 'cobase' | 'comul1' | 'comul2' | 'comul3'
+		| 'clt' | 'mat';
 	type AxisKey =
 		| 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot'
-		| 'knk' | 'afr' | 'ign' | 'mul';
+		| 'knk' | 'afr' | 'ign' | 'mul' | 'temp';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
 	// Axis specs. Основные сигналы — фикс-диапазоны (линии не прыгают при прокрутке,
@@ -39,7 +40,8 @@
 		knk: { kind: 'auto' }, // детонация (счёт/град)
 		afr: { kind: 'auto' }, // AFR факт + цель (общая ось — сравнимы)
 		ign: { kind: 'auto' }, // угол зажигания, град
-		mul: { kind: 'fixed', min: 0, max: 200 } // COmul1/2/3 (множители %, нейтраль 100; COBase — на оси pct)
+		mul: { kind: 'fixed', min: 0, max: 200 }, // COmul1/2/3 (множители %, нейтраль 100; COBase — на оси pct)
+		temp: { kind: 'auto' } // CLT + MAT (общая ось — сравнимы), °C
 	};
 
 	const SERIES: Series[] = [
@@ -60,7 +62,9 @@
 		{ key: 'cobase',    label: 'COBase', color: '#fbbf24', axis: 'pct' },
 		{ key: 'comul1',    label: 'COmul1', color: '#fb923c', axis: 'mul' },
 		{ key: 'comul2',    label: 'COmul2', color: '#22d3ee', axis: 'mul' },
-		{ key: 'comul3',    label: 'COmul3', color: '#a78bfa', axis: 'mul' }
+		{ key: 'comul3',    label: 'COmul3', color: '#a78bfa', axis: 'mul' },
+		{ key: 'clt',       label: 'CLT',    color: '#38bdf8', axis: 'temp' },
+		{ key: 'mat',       label: 'MAT',    color: '#fb7185', axis: 'temp' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
@@ -84,7 +88,8 @@
 			map: true, target: true, boost: true, bias: true, rpm: true, tps: true,
 			co1: false, rpmdot: false, mapdot: false, tpsdot: false,
 			knk: false, afr: false, afrTarget: false, ign: false,
-			cobase: false, comul1: false, comul2: false, comul3: false
+			cobase: false, comul1: false, comul2: false, comul3: false,
+			clt: false, mat: false
 		};
 	}
 	function loadEnabled(): Record<SeriesKey, boolean> {

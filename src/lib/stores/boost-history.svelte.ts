@@ -34,6 +34,8 @@ export interface HistSample {
 	afr: number; // AFR (факт)
 	afrTarget: number; // AFR target (цель)
 	ign: number; // угол зажигания
+	clt: number; // температура ОЖ (cltSignalParam или слот с подписью clt/coolant)
+	mat: number; // температура впускного воздуха (слот с подписью mat/iat/intake)
 	state: number; // BST_ST (55) — regulator phase (NaN if absent)
 }
 
@@ -56,6 +58,20 @@ function resolveIgn(): number {
 	return findSlotEnum(
 		(l) => l.includes('ign') || l.includes('spark') || l.includes('timing') || l.includes('advance') ||
 			l.includes('угол') || l.includes('зажиг') || l.includes('опереж')
+	);
+}
+function resolveClt(): number {
+	const c = boostSettings.value.cltSignalParam;
+	if (c && c !== 0) return c; // источник CLT, выбранный для гейта прогрева
+	return findSlotEnum(
+		(l) => l.includes('clt') || l.includes('coolant') || l.includes('охлажд') ||
+			l.includes('тож') || l.includes('тосол') || l.includes('антифриз')
+	);
+}
+function resolveMat(): number {
+	return findSlotEnum(
+		(l) => l.includes('mat') || l.includes('iat') || l.includes('intake') || l.includes('charge') ||
+			l.includes('впуск') || l.includes('возд')
 	);
 }
 function slotValue(p: Record<number, { value: number }>, en: number): number {
@@ -96,6 +112,8 @@ function tick(): void {
 	const afrEnum = findSlotEnum((l) => (l.includes('afr') || l.includes('lambda') || l.includes('λ')) && !isAfrTarget(l));
 	const afrTgtEnum = findSlotEnum(isAfrTarget);
 	const ignEnum = resolveIgn();
+	const cltEnum = resolveClt();
+	const matEnum = resolveMat();
 	samples.push({
 		t: Date.now() - histState.startedAt,
 		rpm: p[boostSettings.value.rpmSignalParam]?.value ?? NaN,
@@ -116,6 +134,8 @@ function tick(): void {
 		afr: slotValue(p, afrEnum),
 		afrTarget: slotValue(p, afrTgtEnum),
 		ign: slotValue(p, ignEnum),
+		clt: slotValue(p, cltEnum),
+		mat: slotValue(p, matEnum),
 		state: p[PARAM_BOOST_STATE]?.value ?? NaN
 	});
 	if (samples.length > MAX_SAMPLES) samples.splice(0, DROP_CHUNK);
