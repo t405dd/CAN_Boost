@@ -7,7 +7,6 @@
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
-	import ParamPickerModal from '$lib/components/ParamPickerModal.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, pwaNameToEnum } from '$lib/utils/param-mapping';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
@@ -28,80 +27,29 @@
 	];
 
 	let tables = $state<CanOutTable[]>(createDefaultTables());
-	let activeTab = $state(0);
+	let tablesLoaded = $state(false);   // прочитаны ли таблицы с устройства → затемняем редактор до прихода данных
 	let loading = $state(false);
 	let saving = $state(false);
 	let statusMsg = $state('');
+	let activeSection = $state<string | null>(null);   // аккордеон: открыта одна секция за раз (как на бусте)
 
 	// --- CO1 Bus Settings (источник истины — общий стор co1Config, грузится в hydrate() на коннекте) ---
 	let co1Settings = $state<Co1Settings>(defaultCo1Settings());   // редактируемая копия (синхронит $effect ниже)
-	let co1Loading = $state(false);
 	// Прочитаны ли настройки CO1 с устройства — пока false, не показываем дефолты (0x269 и т.п.) как реальные.
 	let co1Loaded = $derived(co1Config.loaded);
-	let co1Saving = $state(false);
-	let co1StatusMsg = $state('');
 	let co1CanIdHex = $state('269');
-
-	function showCo1Status(msg: string, durationMs = 3000) {
-		co1StatusMsg = msg;
-		setTimeout(() => { co1StatusMsg = ''; }, durationMs);
-	}
-
-	// Перечитать настройки CO1 с устройства в общий стор. Редактируемую копию обновит $effect-синхронизатор.
-	async function loadCo1Settings() {
-		co1Loading = true;
-		try {
-			const ok = await loadCo1Config();
-			showCo1Status(ok ? t('logging.loaded') : t('canRx.loadFailed'));
-		} catch (e) {
-			showCo1Status(t('canRx.loadFailed') + ': ' + (e as Error).message);
-		} finally {
-			co1Loading = false;
-		}
-	}
-
-	async function saveCo1Settings() {
-		co1Saving = true;
-		try {
-			co1Settings.canId = parseInt(co1CanIdHex, 16) || 0x269;
-			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS, co1Settings);
-			if (ok) co1Config.value = $state.snapshot(co1Settings);   // стор = то, что на устройстве
-			showCo1Status(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
-		} catch (e) {
-			showCo1Status(t('canRx.saveFailed') + ': ' + (e as Error).message);
-		} finally {
-			co1Saving = false;
-		}
-	}
 
 	let isConnected = $derived(bleState.status === 'connected');
 
-	// Param picker state
-	let paramPickerOpen = $state(false);
-	let paramPickerTarget = $state<'x' | 'y'>('x');
-	// Показываем системные параметры + ТОЛЬКО те cache-слоты, в которые реально
-	// замаплен сигнал (есть подпись). Иначе пикер забит пустыми cache0…cache39.
-	let knownParams = $derived(
-		allParamEntries()
-			.filter(p => p.enumVal < PARAM_CACHE_SLOT_START || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
-			.map(p => p.pwaName)
+	// Опции селектов осей: системные параметры + ТОЛЬКО замапленные cache-слоты (с подписью),
+	// чтобы не показывать пустые cache0…cache39. Значение опции — pwaName (как хранит таблица).
+	let paramOptions = $derived(
+		allParamEntries().filter(p =>
+			p.enumVal < PARAM_CACHE_SLOT_START || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
+		)
 	);
 
-	function openParamPicker(axis: 'x' | 'y') {
-		paramPickerTarget = axis;
-		paramPickerOpen = true;
-	}
-
-	function onParamSelect(param: string) {
-		if (paramPickerTarget === 'x') {
-			tables[activeTab].xAxisParamType = param;
-		} else {
-			tables[activeTab].yAxisParamType = param;
-		}
-		paramPickerOpen = false;
-	}
-
-	// Live cursor: get current engine value for a PWA param name
+	// Live cursor: текущее значение двигателя по pwaName параметра оси.
 	function getLiveValue(pwaName: string): number | undefined {
 		if (!pwaName) return undefined;
 		const enumVal = pwaNameToEnum(pwaName);
@@ -109,11 +57,6 @@
 		const param = liveData.params[enumVal];
 		return param?.value;
 	}
-
-	let liveCursorX = $derived(getLiveValue(tables[activeTab].xAxisParamType));
-	let liveCursorY = $derived(
-		tables[activeTab].hasYAxis ? getLiveValue(tables[activeTab].yAxisParamType) : undefined
-	);
 
 	function showStatus(msg: string, durationMs = 3000) {
 		statusMsg = msg;
@@ -139,31 +82,19 @@
 		return TABLE_IDS.map((_, i) => createDefaultTable(i));
 	}
 
-	async function loadConfig() {
-		loading = true;
-		statusMsg = '';
-		try {
-			const rawData = await readJsonConfig<FirmwareCanOutTable[]>(SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES);
-			if (rawData && rawData.length > 0) {
-				for (let i = 0; i < 4; i++) {
-					if (rawData[i]) {
-						tables[i] = firmwareToCanOutTable(rawData[i]);
-					}
-				}
-				showStatus(t('canRx.loaded', rawData.length));
-			} else {
-				showStatus(t('canRx.noConfig'));
+	// Низкоуровневое чтение таблиц с устройства (без управления UI-флагами — это делают вызывающие).
+	async function fetchTables() {
+		const rawData = await readJsonConfig<FirmwareCanOutTable[]>(SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES);
+		if (rawData && rawData.length > 0) {
+			for (let i = 0; i < 4; i++) {
+				if (rawData[i]) tables[i] = firmwareToCanOutTable(rawData[i]);
 			}
-		} catch (e) {
-			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
-		} finally {
-			loading = false;
 		}
+		tablesLoaded = true;
 	}
 
-	async function saveConfig() {
+	async function saveTables() {
 		saving = true;
-		statusMsg = '';
 		try {
 			const fwTables = tables.map(canOutTableToFirmware);
 			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES, fwTables);
@@ -175,34 +106,57 @@
 		}
 	}
 
-	function setNumCols(val: number) {
-		tables[activeTab].numCols = Math.max(1, Math.min(MAX_SIZE, val));
-	}
-
-	function setNumRows(val: number) {
-		tables[activeTab].numRows = Math.max(1, Math.min(MAX_SIZE, val));
-		if (!tables[activeTab].hasYAxis) {
-			tables[activeTab].numRows = 1;
+	async function saveCo1Settings() {
+		saving = true;
+		try {
+			co1Settings.canId = parseInt(co1CanIdHex, 16) || 0x269;
+			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS, co1Settings);
+			if (ok) co1Config.value = $state.snapshot(co1Settings);   // стор = то, что на устройстве
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			saving = false;
 		}
 	}
 
-	function toggleYAxis() {
-		tables[activeTab].hasYAxis = !tables[activeTab].hasYAxis;
-		if (!tables[activeTab].hasYAxis) {
-			tables[activeTab].numRows = 1;
+	// --- «Восстановить из Flash»: перечитать секцию с устройства, затерев несохранённые правки. ---
+	async function restoreFromFlash(loadFn: () => Promise<unknown>) {
+		loading = true;
+		statusMsg = '';
+		try {
+			await loadFn();
+			showStatus(t('common.restoredFromFlash'));
+		} catch (e) {
+			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
+		} finally {
+			loading = false;
 		}
 	}
+	const restoreCo1 = () => restoreFromFlash(loadCo1Config);
+	const restoreTables = () => restoreFromFlash(fetchTables);
 
-	function onDataChange(newData: number[][]) {
-		tables[activeTab].tableData = newData;
+	// Изменение размерности через встроенные кнопки +/- TableEditor (как на странице буста).
+	// 1D/2D определяется числом строк: rows=1 → 1D, rows>=2 → 2D (hasYAxis выводим отсюда).
+	// tableData держим padded до 16×16 — адаптер режет по cols/rows при сохранении.
+	function onResize(idx: number, rows: number, cols: number) {
+		const tbl = tables[idx];
+		tbl.numCols = Math.max(1, Math.min(MAX_SIZE, cols));
+		tbl.numRows = Math.max(1, Math.min(MAX_SIZE, rows));
+		tbl.hasYAxis = tbl.numRows > 1;
 	}
 
-	function onAxisChange(axis: 'x' | 'y', values: number[]) {
-		if (axis === 'x') {
-			tables[activeTab].xAxisValues = values;
-		} else {
-			tables[activeTab].yAxisValues = values;
-		}
+	function onDataChange(idx: number, newData: number[][]) {
+		tables[idx].tableData = newData;
+	}
+
+	function onAxisChange(idx: number, axis: 'x' | 'y', values: number[]) {
+		if (axis === 'x') tables[idx].xAxisValues = values;
+		else tables[idx].yAxisValues = values;
+	}
+
+	function toggleSection(id: string) {
+		activeSection = activeSection === id ? null : id;
 	}
 
 	// --- Auto-load on connect ---
@@ -214,10 +168,12 @@
 			// Настройки CO1 обычно грузит централизованный hydrate() (см. +layout); здесь фолбэк
 			// (если стор ещё не загружен). Плюс таблицы CAN-выхода (большой конфиг, нужен лишь тут).
 			if (!co1Config.loaded) loadCo1Config();
-			loadConfig();
+			loading = true;
+			fetchTables().catch((e) => showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message)).finally(() => { loading = false; });
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
+			tablesLoaded = false;
 		}
 	});
 
@@ -240,188 +196,169 @@
 	{#if bleState.status !== 'connected'}
 		<ConnectPrompt />
 	{:else}
-		<!-- CO1 Bus Address Settings -->
-		<div class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-3">
-			<div class="flex items-center gap-2 flex-wrap">
-				<span class="text-xs text-[var(--color-dash-text-dim)] uppercase tracking-wider inline-flex items-center gap-1">
-					{t('canTx.co1Settings')}<HelpTip key="help.canTx.co1Settings" />
-				</span>
-				<button onclick={loadCo1Settings} disabled={co1Loading}
-					class="ml-auto px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors disabled:opacity-40">
-					{co1Loading ? t('common.loading') : t('common.loadFromDevice')}
-				</button>
-				<button onclick={saveCo1Settings} disabled={co1Saving}
-					class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-					{co1Saving ? t('common.saving') : t('common.saveToDevice')}
-				</button>
-				{#if co1StatusMsg}
-					<span class="text-xs text-[var(--color-dash-text-dim)]">{co1StatusMsg}</span>
-				{/if}
-			</div>
-			{#if !co1Loaded}
-				<div class="flex items-center gap-2 text-[11px] text-[var(--color-dash-text-dim)] py-1">
+		<!-- Сниппет «Восстановить из Flash»: ставится рядом с каждой кнопкой «Сохранить на устройство»
+		     (inline-block → встают в ряд). Перечитывает секцию с устройства, затирая правки. -->
+		{#snippet restoreBtn(onRestore: () => void)}
+			<button onclick={onRestore} disabled={saving || loading}
+				class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-border)]/40 text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)] hover:bg-[var(--color-dash-border)]/60 transition-colors disabled:opacity-40">
+				{loading ? t('common.loading') : t('common.restoreFromFlash')}
+			</button>
+		{/snippet}
+
+		<!-- Action bar (статус + индикатор загрузки) -->
+		<div class="flex items-center gap-2 flex-wrap empty:hidden">
+			{#if loading}
+				<span class="text-xs text-[var(--color-dash-accent)] inline-flex items-center gap-1.5">
 					<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
-					{t('common.readingDevice')}
-				</div>
-			{:else}
-			<div class="flex items-center gap-4 flex-wrap">
-				<!-- Master enable -->
-				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
-					<input type="checkbox" bind:checked={co1Settings.enabled}
-						class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.co1Enabled')}<HelpTip key="help.canTx.co1Enabled" /></span>
-				</label>
-				<!-- CAN ID -->
-				<div class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canId')}<HelpTip key="help.canTx.canId" /></span>
-					<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) - 1; if (v >= 0) co1CanIdHex = v.toString(16).toUpperCase(); }}
-						class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
-					<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
-					<input type="text" bind:value={co1CanIdHex} maxlength="8"
-						class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono uppercase focus:border-[var(--color-dash-accent)] focus:outline-none" />
-					<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) + 1; if (v <= 0x1FFFFFFF) co1CanIdHex = v.toString(16).toUpperCase(); }}
-						class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {parseInt(co1CanIdHex, 16) || 0} dec</span>
-				</div>
-				<!-- Byte offset -->
-				<label class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canByteOffset')}<HelpTip key="help.canTx.canByteOffset" /></span>
-					<input type="number" min="0" max="6" bind:value={co1Settings.canByteOffset}
-						class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-				</label>
-				<!-- Big-endian -->
-				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
-					<input type="checkbox" bind:checked={co1Settings.canBigEndian}
-						class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.canBigEndian')}<HelpTip key="help.canTx.canBigEndian" /></span>
-				</label>
-				<!-- Send interval -->
-				<label class="flex items-center gap-1.5 {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canInterval')}<HelpTip key="help.canTx.canInterval" /></span>
-					<input type="number" min="10" max="1000" step="10" bind:value={co1Settings.canSendIntervalMs}
-						class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-				</label>
-			</div>
+					{t('common.loading')}
+				</span>
 			{/if}
-		</div>
-		<!-- Action bar -->
-		<div class="flex items-center gap-2 flex-wrap">
-			<button onclick={loadConfig} disabled={loading}
-				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-accent)]/15 text-[var(--color-dash-accent)] hover:bg-[var(--color-dash-accent)]/25 transition-colors disabled:opacity-40">
-				{loading ? t('common.loading') : t('common.loadFromDevice')}
-			</button>
-			<button onclick={saveConfig} disabled={saving}
-				class="px-3 py-1.5 text-xs rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-				{saving ? t('common.saving') : t('common.saveToDevice')}
-			</button>
 			{#if statusMsg}
 				<span class="text-xs text-[var(--color-dash-text-dim)] ml-auto">{statusMsg}</span>
 			{/if}
 		</div>
 
-		<!-- Tabs -->
-		<div class="flex gap-0 border-b border-[var(--color-dash-border)]/50">
-			{#each TABLE_LABELS_KEYS as key, idx}
-				<button onclick={() => activeTab = idx}
-					class="px-3 py-2 text-xs transition-colors border-b-2 -mb-px
-						{activeTab === idx
-							? 'border-[var(--color-dash-accent)] text-[var(--color-dash-accent)]'
-							: 'border-transparent text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-text)]'}">
-					{t(key)}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Active table config -->
-		<div class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-3">
-			<!-- Table properties row -->
-			<div class="flex items-end gap-3 flex-wrap">
-				<!-- Enable toggle -->
-				<label class="flex items-center gap-1.5 cursor-pointer">
-					<input type="checkbox" bind:checked={tables[activeTab].isEnabled}
-						class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('common.enabled')}<HelpTip key="help.canTx.enable" /></span>
-				</label>
-
-				<!-- Has Y-axis toggle -->
-				<label class="flex items-center gap-1.5 cursor-pointer">
-					<input type="checkbox" checked={tables[activeTab].hasYAxis}
-						onchange={toggleYAxis}
-						class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.is2d')}<HelpTip key="help.canTx.is2d" /></span>
-				</label>
-
-				<!-- X-axis param -->
-				<div class="space-y-1">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.xParam')}<HelpTip key="help.canTx.xParam" /></span>
-					<button onclick={() => openParamPicker('x')}
-						class="block max-w-48 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-accent)] text-left truncate hover:border-[var(--color-dash-accent)] transition-colors">
-						{tables[activeTab].xAxisParamType ? getParamDisplayName(tables[activeTab].xAxisParamType) : '—'}
-					</button>
-				</div>
-
-				<!-- Y-axis param (only if 2D) -->
-				{#if tables[activeTab].hasYAxis}
-					<div class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.yParam')}<HelpTip key="help.canTx.yParam" /></span>
-						<button onclick={() => openParamPicker('y')}
-							class="block max-w-48 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-accent)] text-left truncate hover:border-[var(--color-dash-accent)] transition-colors">
-							{tables[activeTab].yAxisParamType ? getParamDisplayName(tables[activeTab].yAxisParamType) : '—'}
+		<!-- Настройки шины CO1 (аккордеон) -->
+		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('co1')}>
+				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+					{t('canTx.co1Settings')}<HelpTip key="help.canTx.co1Settings" />
+					{#if !co1Loaded}
+						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin" title={t('common.readingDevice')}></span>
+					{:else if co1Settings.enabled}
+						<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>
+					{/if}
+				</span>
+				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'co1' ? '−' : '+'}</span>
+			</button>
+			{#if activeSection === 'co1'}
+				<div class="px-3 pb-3 space-y-3">
+					{#if !co1Loaded}
+						<div class="flex items-center gap-2 text-[11px] text-[var(--color-dash-text-dim)] py-2">
+							<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+							{t('common.readingDevice')}
+						</div>
+					{:else}
+					<div class="flex items-center justify-between">
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={co1Settings.enabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.co1Enabled')}<HelpTip key="help.canTx.co1Enabled" /></span>
+						</label>
+						<button onclick={saveCo1Settings} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
 						</button>
+						{@render restoreBtn(restoreCo1)}
+					</div>
+
+					<div class="flex items-center gap-3 flex-wrap {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
+						<!-- CAN ID -->
+						<div class="flex items-center gap-1.5">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canId')}<HelpTip key="help.canTx.canId" /></span>
+							<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) - 1; if (v >= 0) co1CanIdHex = v.toString(16).toUpperCase(); }}
+								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
+							<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
+							<input type="text" bind:value={co1CanIdHex} maxlength="8"
+								class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono uppercase focus:border-[var(--color-dash-accent)] focus:outline-none" />
+							<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) + 1; if (v <= 0x1FFFFFFF) co1CanIdHex = v.toString(16).toUpperCase(); }}
+								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {parseInt(co1CanIdHex, 16) || 0} dec</span>
+						</div>
+						<!-- Byte offset -->
+						<label class="flex items-center gap-1.5">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canByteOffset')}<HelpTip key="help.canTx.canByteOffset" /></span>
+							<input type="number" min="0" max="6" bind:value={co1Settings.canByteOffset}
+								class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
+						</label>
+						<!-- Big-endian -->
+						<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
+							<input type="checkbox" bind:checked={co1Settings.canBigEndian} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.canBigEndian')}<HelpTip key="help.canTx.canBigEndian" /></span>
+						</label>
+						<!-- Send interval -->
+						<label class="flex items-center gap-1.5">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canInterval')}<HelpTip key="help.canTx.canInterval" /></span>
+							<input type="number" min="10" max="1000" step="10" bind:value={co1Settings.canSendIntervalMs}
+								class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
+						</label>
+					</div>
+					{/if}
+				</div>
+			{/if}
+		</section>
+
+		<!-- Таблицы CAN выхода: по аккордеон-секции на таблицу (T1…T4). -->
+		{#each tables as table, idx}
+			<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+				<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('t' + idx)}>
+					<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+						{t(TABLE_LABELS_KEYS[idx])}
+						{#if table.isEnabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+					</span>
+					<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 't' + idx ? '−' : '+'}</span>
+				</button>
+				{#if activeSection === 't' + idx}
+					<div class="px-3 pb-3 space-y-2">
+						<!-- Включение таблицы + параметры осей (инлайн-селекты, как на бусте) -->
+						<div class="flex items-end gap-3 flex-wrap">
+							<label class="flex items-center gap-1.5 cursor-pointer pb-1">
+								<input type="checkbox" bind:checked={table.isEnabled} class="accent-[var(--color-dash-accent)]" />
+								<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('common.enabled')}<HelpTip key="help.canTx.enable" /></span>
+							</label>
+							<label class="space-y-1">
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.xParam')}<HelpTip key="help.canTx.xParam" /></span>
+								<select bind:value={table.xAxisParamType}
+									class="block w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none">
+									<option value="">—</option>
+									{#each paramOptions as p}
+										<option value={p.pwaName}>{getParamDisplayName(p.pwaName)}</option>
+									{/each}
+								</select>
+							</label>
+							{#if table.hasYAxis}
+								<label class="space-y-1">
+									<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.yParam')}<HelpTip key="help.canTx.yParam" /></span>
+									<select bind:value={table.yAxisParamType}
+										class="block w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none">
+										<option value="">—</option>
+										{#each paramOptions as p}
+											<option value={p.pwaName}>{getParamDisplayName(p.pwaName)}</option>
+										{/each}
+									</select>
+								</label>
+							{/if}
+						</div>
+
+						<!-- Table Editor -->
+						<TableEditor
+							data={table.tableData}
+							dimmed={!tablesLoaded}
+							xAxisValues={table.xAxisValues}
+							yAxisValues={table.yAxisValues}
+							numCols={table.numCols}
+							numRows={table.numRows}
+							colorGradient={true}
+							gradientMin={GRADIENT_BOUNDS[idx][0]}
+							gradientMax={GRADIENT_BOUNDS[idx][1]}
+							xAxisLabel={table.xAxisParamType ? getParamShortName(table.xAxisParamType) : undefined}
+							yAxisLabel={table.yAxisParamType ? getParamShortName(table.yAxisParamType) : undefined}
+							liveCursorX={getLiveValue(table.xAxisParamType)}
+							liveCursorY={table.hasYAxis ? getLiveValue(table.yAxisParamType) : undefined}
+							resizable={true}
+							minCols={1}
+							onResize={(r, c) => onResize(idx, r, c)}
+							onDataChange={(d) => onDataChange(idx, d)}
+							onAxisChange={(a, v) => onAxisChange(idx, a, v)}
+						/>
+
+						<button onclick={saveTables} disabled={saving}
+							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+							{saving ? t('common.saving') : t('common.saveToDevice')}
+						</button>
+						{@render restoreBtn(restoreTables)}
 					</div>
 				{/if}
-
-				<!-- Cols -->
-				<label class="space-y-1">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.cols')}<HelpTip key="help.canTx.cols" /></span>
-					<input type="number" min="1" max={MAX_SIZE} value={tables[activeTab].numCols}
-						onchange={(e) => setNumCols(parseInt(e.currentTarget.value) || 1)}
-						class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-				</label>
-
-				<!-- Rows (only if 2D) -->
-				{#if tables[activeTab].hasYAxis}
-					<label class="space-y-1">
-						<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.rows')}<HelpTip key="help.canTx.rows" /></span>
-						<input type="number" min="1" max={MAX_SIZE} value={tables[activeTab].numRows}
-							onchange={(e) => setNumRows(parseInt(e.currentTarget.value) || 1)}
-							class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-					</label>
-				{/if}
-
-				<!-- Size display -->
-				<span class="text-[10px] text-[var(--color-dash-text-dim)] pb-1">
-					{tables[activeTab].numCols} x {tables[activeTab].hasYAxis ? tables[activeTab].numRows : 1}
-				</span>
-			</div>
-
-			<!-- Table Editor -->
-			{#key activeTab}
-				<TableEditor
-					data={tables[activeTab].tableData}
-					xAxisValues={tables[activeTab].xAxisValues}
-					yAxisValues={tables[activeTab].hasYAxis ? tables[activeTab].yAxisValues : undefined}
-					numCols={tables[activeTab].numCols}
-					numRows={tables[activeTab].hasYAxis ? tables[activeTab].numRows : 1}
-					colorGradient={true}
-					gradientMin={GRADIENT_BOUNDS[activeTab][0]}
-					gradientMax={GRADIENT_BOUNDS[activeTab][1]}
-					xAxisLabel={tables[activeTab].xAxisParamType ? getParamShortName(tables[activeTab].xAxisParamType) : undefined}
-					yAxisLabel={tables[activeTab].yAxisParamType ? getParamShortName(tables[activeTab].yAxisParamType) : undefined}
-					{liveCursorX}
-					{liveCursorY}
-					{onDataChange}
-					{onAxisChange}
-				/>
-			{/key}
-		</div>
+			</section>
+		{/each}
 	{/if}
 </div>
-
-<ParamPickerModal
-	open={paramPickerOpen}
-	{knownParams}
-	currentValue={paramPickerTarget === 'x' ? tables[activeTab].xAxisParamType : tables[activeTab].yAxisParamType}
-	onselect={onParamSelect}
-	onclose={() => paramPickerOpen = false}
-/>
