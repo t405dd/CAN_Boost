@@ -9,10 +9,12 @@
 	import { PARAM_BOOST_STATE } from '$lib/ble/protocol';
 	import { t } from '$lib/i18n/index.svelte';
 
-	let boostOut = $derived(liveData.params[3]?.value);
+	// Строку boost (выход + статус) показываем только когда контроллер включён — иначе она неактуальна.
+	let boostEnabled = $derived(boostSettings.value.enabled);
+	let boostOut = $derived(boostEnabled ? liveData.params[3]?.value : undefined);
 	// CO1 скрываем целиком, когда выход выключен в настройках (ничего не шлётся в шину).
 	let co1 = $derived(co1Config.value.enabled ? liveData.params[2]?.value : undefined);
-	let state = $derived(liveData.params[PARAM_BOOST_STATE]?.value);
+	let state = $derived(boostEnabled ? liveData.params[PARAM_BOOST_STATE]?.value : undefined);
 
 	let boostPct = $derived(boostOut === undefined ? 0 : Math.max(0, Math.min(100, boostOut)));
 	// CO1 рисуем как дюти 0–100 % (как T1 Base / boost). Число рядом покажет реальное значение,

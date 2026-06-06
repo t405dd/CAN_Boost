@@ -11,7 +11,9 @@
 	let rpm = $derived(liveData.params[boostSettings.value.rpmSignalParam]?.value);
 	let tps = $derived(liveData.params[boostSettings.value.tpsSignalParam]?.value);
 	let map = $derived(liveData.params[boostSettings.value.mapSignalParam]?.value);
-	let err = $derived(liveData.params[5]?.value);   // BST_ERR
+	// ОШ (ошибка регулятора) показываем только при включённом контроллере — иначе не актуальна.
+	let boostEnabled = $derived(boostSettings.value.enabled);
+	let err = $derived(boostEnabled ? liveData.params[5]?.value : undefined);   // BST_ERR
 
 	function fmt(v: number, d = 1): string {
 		return Number.isInteger(v) ? String(v) : v.toFixed(d);
@@ -52,12 +54,14 @@
 			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{map === undefined ? '—' : fmt(map)}</span>
 		</div>
 
-		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
-			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">{t('hdr.err')}</span>
-			<span class="text-lg leading-none font-bold tabular-nums" style="color: {errColor}">
-				{err === undefined ? '—' : (err > 0 ? '+' : '') + fmt(err)}
-			</span>
-		</div>
+		{#if boostEnabled}
+			<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
+				<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">{t('hdr.err')}</span>
+				<span class="text-lg leading-none font-bold tabular-nums" style="color: {errColor}">
+					{err === undefined ? '—' : (err > 0 ? '+' : '') + fmt(err)}
+				</span>
+			</div>
+		{/if}
 
 		<!-- Индикатор-шеврон: график свёрнут/раскрыт -->
 		<div class="flex items-center justify-center px-1.5 text-[var(--color-dash-text-dim)]">
