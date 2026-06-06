@@ -70,8 +70,16 @@
 		p.biasRate === settings.learnBiasRate && p.rate === settings.learnRate &&
 		p.kpRate === settings.learnKpRate && p.kdRate === settings.learnKdRate &&
 		p.stability === settings.learnStabilityTimeMs));
+	// Понятные имена производных сигналов (оси таблиц): firmware-имена BST_dRPM/MAPdot/TPSdot
+	// заменяем на дружелюбные RPMdot/MAPdot/TPSdot, чтобы их легко было найти/узнать.
+	const AXIS_FRIENDLY: Record<number, string> = {
+		14: 'RPMdot', // BST_dRPM
+		58: 'MAPdot', // PARAM_MAP_DOT
+		59: 'TPSdot'  // PARAM_TPS_DOT
+	};
 	// Get short param name from enum value (for axis labels)
 	function enumParamShortName(enumVal: number): string {
+		if (AXIS_FRIENDLY[enumVal]) return AXIS_FRIENDLY[enumVal];
 		const pwaName = enumToPwaName(enumVal);
 		if (pwaName) return getParamShortName(pwaName);
 		return enumToFirmwareName(enumVal);
@@ -80,8 +88,9 @@
 	const isCacheSlot = (enumVal: number) =>
 		enumVal >= PARAM_CACHE_SLOT_START && enumVal < PARAM_CACHE_SLOT_START + 40;
 	// Подпись пункта в дропдауне выбора параметра: cache-слот → понятное имя сигнала
-	// (RPM/MAP/…), системный параметр → его firmware-имя.
+	// (RPM/MAP/…), производные → RPMdot/MAPdot/TPSdot, прочие системные → firmware-имя.
 	function paramOptionLabel(enumVal: number): string {
+		if (AXIS_FRIENDLY[enumVal]) return AXIS_FRIENDLY[enumVal];
 		return isCacheSlot(enumVal)
 			? getCacheSlotDisplayName(enumVal - PARAM_CACHE_SLOT_START)
 			: enumToFirmwareName(enumVal);
