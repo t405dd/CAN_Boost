@@ -25,6 +25,7 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		learnEnabled: true,
 		learnBias: true,
 		learnGains: true,
+		learnDeltaMap: false,
 		learnRate: 0.05,
 		learnErrorThreshold: 5.0,
 		learnStabilityTimeMs: 2000.0,

@@ -1374,6 +1374,10 @@
 							<input type="checkbox" bind:checked={settings.learnGains} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
 							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnGains')}<HelpTip key="help.boost.learnGains" /></span>
 						</label>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="checkbox" bind:checked={settings.learnDeltaMap} disabled={!settings.learnEnabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.learnDeltaMap')}<HelpTip key="help.boost.learnDeltaMap" /></span>
+						</label>
 					</div>
 					<!-- Один регулятор скорости калибровки (3 пресета). Остальное — авто (P6). -->
 					<div class="space-y-1">

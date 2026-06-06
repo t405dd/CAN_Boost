@@ -261,6 +261,7 @@ export interface BoostControllerSettings {
 	learnEnabled: boolean;
 	learnBias: boolean;    // P7: обучать BIAS (feedforward: P5 + P0)
 	learnGains: boolean;   // P7: обучать Kp/Kd (динамика регулятора)
+	learnDeltaMap: boolean; // P8: автотюн ΔMAP (порог SPOOL→PID) по перелёту
 	learnRate: number;
 	learnErrorThreshold: number;
 	learnStabilityTimeMs: number;
