@@ -41,13 +41,22 @@
 
 	let isConnected = $derived(bleState.status === 'connected');
 
-	// Опции селектов осей: системные параметры + ТОЛЬКО замапленные cache-слоты (с подписью),
-	// чтобы не показывать пустые cache0…cache39. Значение опции — pwaName (как хранит таблица).
+	// Cache-слоты занимают enum [15..54]; системные параметры — < 15 и >= 55 (вкл. производные).
+	const isCacheSlot = (enumVal: number) =>
+		enumVal >= PARAM_CACHE_SLOT_START && enumVal < PARAM_CACHE_SLOT_START + 40;
+	// Опции селектов осей: системные параметры (вкл. RPMdot/MAPdot/TPSdot) + ТОЛЬКО замапленные
+	// cache-слоты (с подписью), чтобы не показывать пустые cache0…cache39. Значение — pwaName.
 	let paramOptions = $derived(
 		allParamEntries().filter(p =>
-			p.enumVal < PARAM_CACHE_SLOT_START || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
+			!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
 		)
 	);
+	// Понятные имена производных (оси): pwa-имена → дружелюбные RPMdot/MAPdot/TPSdot.
+	const AXIS_FRIENDLY_PWA: Record<string, string> = {
+		boost_drpm: 'RPMdot', map_dot: 'MAPdot', tps_dot: 'TPSdot'
+	};
+	const axisOptionLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamDisplayName(pwaName);
+	const axisShortLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamShortName(pwaName);
 
 	// Live cursor: текущее значение двигателя по pwaName параметра оси.
 	function getLiveValue(pwaName: string): number | undefined {
@@ -311,7 +320,7 @@
 									class="block w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none">
 									<option value="">—</option>
 									{#each paramOptions as p}
-										<option value={p.pwaName}>{getParamDisplayName(p.pwaName)}</option>
+										<option value={p.pwaName}>{axisOptionLabel(p.pwaName)}</option>
 									{/each}
 								</select>
 							</label>
@@ -322,7 +331,7 @@
 										class="block w-40 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none">
 										<option value="">—</option>
 										{#each paramOptions as p}
-											<option value={p.pwaName}>{getParamDisplayName(p.pwaName)}</option>
+											<option value={p.pwaName}>{axisOptionLabel(p.pwaName)}</option>
 										{/each}
 									</select>
 								</label>
@@ -340,8 +349,8 @@
 							colorGradient={true}
 							gradientMin={GRADIENT_BOUNDS[idx][0]}
 							gradientMax={GRADIENT_BOUNDS[idx][1]}
-							xAxisLabel={table.xAxisParamType ? getParamShortName(table.xAxisParamType) : undefined}
-							yAxisLabel={table.yAxisParamType ? getParamShortName(table.yAxisParamType) : undefined}
+							xAxisLabel={table.xAxisParamType ? axisShortLabel(table.xAxisParamType) : undefined}
+							yAxisLabel={table.yAxisParamType ? axisShortLabel(table.yAxisParamType) : undefined}
 							liveCursorX={getLiveValue(table.xAxisParamType)}
 							liveCursorY={table.hasYAxis ? getLiveValue(table.yAxisParamType) : undefined}
 							resizable={true}
