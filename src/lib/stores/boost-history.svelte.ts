@@ -10,7 +10,8 @@
 import { liveData } from './live-data.svelte';
 import { boostSettings } from './boost-settings.svelte';
 import { bleState } from './ble-connection.svelte';
-import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS, PARAM_MAP_DOT, PARAM_TPS_DOT } from '$lib/ble/protocol';
+import { signalLabels } from './signal-labels.svelte';
+import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS, PARAM_MAP_DOT, PARAM_TPS_DOT, PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 
 export interface HistSample {
 	t: number; // ms since session start (monotonic, sorted)
@@ -24,7 +25,37 @@ export interface HistSample {
 	rpmdot: number; // BST_dRPM (14) — dRPM/dt, RPM/s (firmware)
 	mapdot: number; // MAPdot (58) — dMAP/dt, kPa/s (firmware)
 	tpsdot: number; // TPSdot (59) — dTPS/dt, %/s (firmware)
+	// Принятые CAN-сигналы (cache-слоты), резолвятся по подписи/настройке — NaN если не найдены.
+	knk: number; // детонация (knockSignalParam или слот с подписью knock)
+	afr: number; // AFR (факт)
+	afrTarget: number; // AFR target (цель)
+	ign: number; // угол зажигания
 	state: number; // BST_ST (55) — regulator phase (NaN if absent)
+}
+
+// --- Резолв принятых сигналов по подписи cache-слота (зависит от CAN Receive config) -------
+/** Найти enum cache-слота, чья подпись (в нижнем регистре) удовлетворяет предикату; -1 если нет. */
+function findSlotEnum(match: (label: string) => boolean): number {
+	for (const [k, v] of Object.entries(signalLabels)) {
+		if (v && v.label && match(v.label.toLowerCase())) return PARAM_CACHE_SLOT_START + Number(k);
+	}
+	return -1;
+}
+const isAfrTarget = (l: string) =>
+	l.includes('afr') && (l.includes('tgt') || l.includes('target') || l.includes('цел') || l.includes('aim') || l.includes('desired'));
+function resolveKnk(): number {
+	const k = boostSettings.value.knockSignalParam;
+	if (k && k !== 0) return k; // явно выбранный сигнал детонации
+	return findSlotEnum((l) => l.includes('knock') || l.includes('knk') || l.includes('детон'));
+}
+function resolveIgn(): number {
+	return findSlotEnum(
+		(l) => l.includes('ign') || l.includes('spark') || l.includes('timing') || l.includes('advance') ||
+			l.includes('угол') || l.includes('зажиг') || l.includes('опереж')
+	);
+}
+function slotValue(p: Record<number, { value: number }>, en: number): number {
+	return en >= 0 ? (p[en]?.value ?? NaN) : NaN;
 }
 
 const SAMPLE_HZ = 10;
@@ -57,6 +88,10 @@ function tick(): void {
 	// Без связи liveData держит застывшие значения — не плодим дубль-мусор.
 	if (bleState.status !== 'connected') return;
 	const p = liveData.params;
+	const knkEnum = resolveKnk();
+	const afrEnum = findSlotEnum((l) => (l.includes('afr') || l.includes('lambda') || l.includes('λ')) && !isAfrTarget(l));
+	const afrTgtEnum = findSlotEnum(isAfrTarget);
+	const ignEnum = resolveIgn();
 	samples.push({
 		t: Date.now() - histState.startedAt,
 		rpm: p[boostSettings.value.rpmSignalParam]?.value ?? NaN,
@@ -69,6 +104,10 @@ function tick(): void {
 		rpmdot: p[14]?.value ?? NaN, // BST_dRPM
 		mapdot: p[PARAM_MAP_DOT]?.value ?? NaN,
 		tpsdot: p[PARAM_TPS_DOT]?.value ?? NaN,
+		knk: slotValue(p, knkEnum),
+		afr: slotValue(p, afrEnum),
+		afrTarget: slotValue(p, afrTgtEnum),
+		ign: slotValue(p, ignEnum),
 		state: p[PARAM_BOOST_STATE]?.value ?? NaN
 	});
 	if (samples.length > MAX_SAMPLES) samples.splice(0, DROP_CHUNK);

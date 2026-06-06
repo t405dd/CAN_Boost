@@ -1,8 +1,10 @@
 <script lang="ts">
 	// Expandable live chart over the in-memory boost history (boost-history store).
-	// Series: RPM / MAP / target / boost / bias / TPS / CO1 + derivatives RPMdot /
-	// MAPdot / TPSdot. Same-unit pairs share a fixed axis (MAP↔TGT, boost↔bias) so
-	// they stay directly comparable; derivatives use auto-scaled symmetric axes.
+	// Series: RPM / MAP / target / boost / bias / TPS / CO1, derivatives RPMdot /
+	// MAPdot / TPSdot, and received signals knock / AFR / AFR target / ignition
+	// (resolved by cache-slot label). Same-unit pairs share a fixed axis (MAP↔TGT,
+	// boost↔bias, AFR↔AFRtgt) so they stay comparable; derivatives use auto-scaled
+	// symmetric axes, the rest auto-scaled.
 	// A colored regulator-state band runs along the bottom.
 	//
 	// Touch-first: drag to scroll time, pinch / wheel to zoom, tap to drop a slice
@@ -14,8 +16,11 @@
 
 	type SeriesKey =
 		| 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps' | 'co1'
-		| 'rpmdot' | 'mapdot' | 'tpsdot';
-	type AxisKey = 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot';
+		| 'rpmdot' | 'mapdot' | 'tpsdot'
+		| 'knk' | 'afr' | 'afrTarget' | 'ign';
+	type AxisKey =
+		| 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot'
+		| 'knk' | 'afr' | 'ign';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
 	// Axis specs. Основные сигналы — фикс-диапазоны (линии не прыгают при прокрутке,
@@ -29,7 +34,10 @@
 		tps: { kind: 'fixed', min: 0, max: 100 }, // TPS (throttle %)
 		rpmdot: { kind: 'auto', sym: true }, // dRPM/dt
 		mapdot: { kind: 'auto', sym: true }, // dMAP/dt
-		tpsdot: { kind: 'auto', sym: true } // dTPS/dt
+		tpsdot: { kind: 'auto', sym: true }, // dTPS/dt
+		knk: { kind: 'auto' }, // детонация (счёт/град)
+		afr: { kind: 'auto' }, // AFR факт + цель (общая ось — сравнимы)
+		ign: { kind: 'auto' } // угол зажигания, град
 	};
 
 	const SERIES: Series[] = [
@@ -42,7 +50,11 @@
 		{ key: 'co1',    label: 'CO1',    color: '#f472b6', axis: 'pct' },
 		{ key: 'rpmdot', label: 'RPMdot', color: '#60a5fa', axis: 'rpmdot' },
 		{ key: 'mapdot', label: 'MAPdot', color: '#2dd4bf', axis: 'mapdot' },
-		{ key: 'tpsdot', label: 'TPSdot', color: '#e879f9', axis: 'tpsdot' }
+		{ key: 'tpsdot', label: 'TPSdot', color: '#e879f9', axis: 'tpsdot' },
+		{ key: 'knk',       label: 'KNK',    color: '#f87171', axis: 'knk' },
+		{ key: 'afr',       label: 'AFR',    color: '#bef264', axis: 'afr' },
+		{ key: 'afrTarget', label: 'AFRtgt', color: '#84cc16', axis: 'afr' },
+		{ key: 'ign',       label: 'IGN',    color: '#818cf8', axis: 'ign' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
@@ -64,7 +76,8 @@
 	function defaultEnabled(): Record<SeriesKey, boolean> {
 		return {
 			map: true, target: true, boost: true, bias: true, rpm: true, tps: true,
-			co1: false, rpmdot: false, mapdot: false, tpsdot: false
+			co1: false, rpmdot: false, mapdot: false, tpsdot: false,
+			knk: false, afr: false, afrTarget: false, ign: false
 		};
 	}
 	function loadEnabled(): Record<SeriesKey, boolean> {
