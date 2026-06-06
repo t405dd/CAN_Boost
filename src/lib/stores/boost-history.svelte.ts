@@ -10,7 +10,7 @@
 import { liveData } from './live-data.svelte';
 import { boostSettings } from './boost-settings.svelte';
 import { bleState } from './ble-connection.svelte';
-import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS } from '$lib/ble/protocol';
+import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS, PARAM_MAP_DOT, PARAM_TPS_DOT } from '$lib/ble/protocol';
 
 export interface HistSample {
 	t: number; // ms since session start (monotonic, sorted)
@@ -20,6 +20,10 @@ export interface HistSample {
 	target: number; // BST_TGT (4) — target MAP
 	boost: number; // BST_OUT (3) — actuator duty %
 	bias: number; // BST_BIAS (57) — feedforward duty, computed by firmware (single source of truth)
+	co1: number; // CO1 (2) — CAN-out 1 duty %
+	rpmdot: number; // BST_dRPM (14) — dRPM/dt, RPM/s (firmware)
+	mapdot: number; // MAPdot (58) — dMAP/dt, kPa/s (firmware)
+	tpsdot: number; // TPSdot (59) — dTPS/dt, %/s (firmware)
 	state: number; // BST_ST (55) — regulator phase (NaN if absent)
 }
 
@@ -61,6 +65,10 @@ function tick(): void {
 		target: p[4]?.value ?? NaN,
 		boost: p[3]?.value ?? NaN,
 		bias: p[PARAM_BOOST_BIAS]?.value ?? NaN, // прошивка считает bias по таблице — читаем готовое
+		co1: p[2]?.value ?? NaN,
+		rpmdot: p[14]?.value ?? NaN, // BST_dRPM
+		mapdot: p[PARAM_MAP_DOT]?.value ?? NaN,
+		tpsdot: p[PARAM_TPS_DOT]?.value ?? NaN,
 		state: p[PARAM_BOOST_STATE]?.value ?? NaN
 	});
 	if (samples.length > MAX_SAMPLES) samples.splice(0, DROP_CHUNK);

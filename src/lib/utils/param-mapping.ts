@@ -21,7 +21,11 @@ const SYSTEM_PARAMS: [string, string, number][] = [
 	['BST_KPZ', 'boost_kp_mult', 11],
 	['BST_KDZ', 'boost_kd_mult', 12],
 	['BST_TRN', 'boost_transient', 13],
-	['BST_dRPM', 'boost_drpm', 14],
+	['BST_dRPM', 'boost_drpm', 14],   // RPMdot
+	// Производные сигналов (enum 58/59 — после cache-слотов и STATE/UNREACHABLE/BIAS).
+	// Доступны как оси таблиц коррекции. ДОЛЖНЫ совпадать с constants.h.
+	['MAPdot', 'map_dot', 58],
+	['TPSdot', 'tps_dot', 59],
 ];
 
 // --- Cache slots (enum 15-54) ---

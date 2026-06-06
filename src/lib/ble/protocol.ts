@@ -51,6 +51,9 @@ export const PARAM_BOOST_STATE = 55;
 export const PARAM_BOOST_UNREACHABLE = 56;
 // feedforward (duty из таблицы BIAS) — enum 57. Считает прошивка (единый источник правды).
 export const PARAM_BOOST_BIAS = 57;
+// Производные сигналов (сглаженные в прошивке) — enum 58/59. RPMdot = BST_dRPM (14).
+export const PARAM_MAP_DOT = 58;
+export const PARAM_TPS_DOT = 59;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
@@ -77,6 +80,8 @@ for (let i = 0; i < 40; i++) {
 PARAM_NAMES[PARAM_BOOST_STATE] = 'BST_ST';
 PARAM_NAMES[PARAM_BOOST_UNREACHABLE] = 'BST_UNR';
 PARAM_NAMES[PARAM_BOOST_BIAS] = 'BST_BIAS';
+PARAM_NAMES[PARAM_MAP_DOT] = 'MAPdot';
+PARAM_NAMES[PARAM_TPS_DOT] = 'TPSdot';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.

@@ -1,36 +1,48 @@
 <script lang="ts">
 	// Expandable live chart over the in-memory boost history (boost-history store).
-	// Plots RPM / MAP / target / boost / bias on three independent auto-scaled axes
-	// (so same-unit pairs — MAP vs target, boost vs bias — stay directly comparable),
-	// plus a colored regulator-state band along the bottom.
+	// Series: RPM / MAP / target / boost / bias / TPS / CO1 + derivatives RPMdot /
+	// MAPdot / TPSdot. Same-unit pairs share a fixed axis (MAP↔TGT, boost↔bias) so
+	// they stay directly comparable; derivatives use auto-scaled symmetric axes.
+	// A colored regulator-state band runs along the bottom.
 	//
 	// Touch-first: drag to scroll time, pinch / wheel to zoom, tap to drop a slice
-	// cursor (vertical line + exact values at that instant in the legend).
+	// cursor (vertical line + exact values at that instant in the legend). Tap a
+	// legend chip to toggle a series (choice persisted).
 	import { histState, getHistory, toggleChart, type HistSample } from '$lib/stores/boost-history.svelte';
 	import { boostSettings } from '$lib/stores/boost-settings.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 
-	type SeriesKey = 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps';
-	type AxisKey = 'kpa' | 'pct' | 'rpm' | 'tps';
+	type SeriesKey =
+		| 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps' | 'co1'
+		| 'rpmdot' | 'mapdot' | 'tpsdot';
+	type AxisKey = 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
-	// Fixed Y ranges per axis (no auto-scale) — линии не прыгают при прокрутке,
-	// MAP/TGT и BOOST/BIAS всегда в одном масштабе.
-	const AXIS_RANGE: Record<AxisKey, { min: number; max: number }> = {
-		kpa: { min: 0, max: 400 }, // MAP / target MAP
-		pct: { min: 0, max: 100 }, // boost / bias (duty %)
-		rpm: { min: 0, max: 9000 }, // RPM
-		tps: { min: 0, max: 100 } // TPS (throttle %)
+	// Axis specs. Основные сигналы — фикс-диапазоны (линии не прыгают при прокрутке,
+	// MAP↔TGT и BOOST↔BIAS в одном масштабе). Производные (dRPM/dMAP/dTPS) знаковые с
+	// неизвестным размахом → автоскейл, симметрично около нуля.
+	type AxisSpec = { kind: 'fixed'; min: number; max: number } | { kind: 'auto'; sym?: boolean };
+	const AXES: Record<AxisKey, AxisSpec> = {
+		kpa: { kind: 'fixed', min: 0, max: 400 }, // MAP / target MAP
+		pct: { kind: 'fixed', min: 0, max: 100 }, // boost / bias / CO1 (duty %)
+		rpm: { kind: 'fixed', min: 0, max: 9000 }, // RPM
+		tps: { kind: 'fixed', min: 0, max: 100 }, // TPS (throttle %)
+		rpmdot: { kind: 'auto', sym: true }, // dRPM/dt
+		mapdot: { kind: 'auto', sym: true }, // dMAP/dt
+		tpsdot: { kind: 'auto', sym: true } // dTPS/dt
 	};
 
-	// MAP/TGT share the kPa axis; BOOST/BIAS share the % axis; RPM and TPS on their own.
 	const SERIES: Series[] = [
-		{ key: 'map',    label: 'MAP',   color: '#00d4ff', axis: 'kpa' },
-		{ key: 'target', label: 'TGT',   color: '#ffd400', axis: 'kpa' },
-		{ key: 'boost',  label: 'BOOST', color: '#00ff88', axis: 'pct' },
-		{ key: 'bias',   label: 'BIAS',  color: '#ff6b35', axis: 'pct' },
-		{ key: 'rpm',    label: 'RPM',   color: '#9ca3af', axis: 'rpm' },
-		{ key: 'tps',    label: 'TPS',   color: '#c084fc', axis: 'tps' }
+		{ key: 'map',    label: 'MAP',    color: '#00d4ff', axis: 'kpa' },
+		{ key: 'target', label: 'TGT',    color: '#ffd400', axis: 'kpa' },
+		{ key: 'boost',  label: 'BOOST',  color: '#00ff88', axis: 'pct' },
+		{ key: 'bias',   label: 'BIAS',   color: '#ff6b35', axis: 'pct' },
+		{ key: 'rpm',    label: 'RPM',    color: '#9ca3af', axis: 'rpm' },
+		{ key: 'tps',    label: 'TPS',    color: '#c084fc', axis: 'tps' },
+		{ key: 'co1',    label: 'CO1',    color: '#f472b6', axis: 'pct' },
+		{ key: 'rpmdot', label: 'RPMdot', color: '#60a5fa', axis: 'rpmdot' },
+		{ key: 'mapdot', label: 'MAPdot', color: '#2dd4bf', axis: 'mapdot' },
+		{ key: 'tpsdot', label: 'TPSdot', color: '#e879f9', axis: 'tpsdot' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
@@ -46,9 +58,29 @@
 		8: { key: 'hdr.stCut',       color: '#ff0040' }
 	};
 
-	let enabled = $state<Record<SeriesKey, boolean>>({
-		map: true, target: true, boost: true, bias: true, rpm: true, tps: true
-	});
+	// Видимость серий. Основные — вкл; CO1 и производные — выкл по умолчанию (чтобы не
+	// загромождать), пользователь включает тапом по чипу легенды. Выбор персистится.
+	const ENABLED_KEY = 'canboost.chart.enabled';
+	function defaultEnabled(): Record<SeriesKey, boolean> {
+		return {
+			map: true, target: true, boost: true, bias: true, rpm: true, tps: true,
+			co1: false, rpmdot: false, mapdot: false, tpsdot: false
+		};
+	}
+	function loadEnabled(): Record<SeriesKey, boolean> {
+		const def = defaultEnabled();
+		if (typeof localStorage === 'undefined') return def;
+		try {
+			const raw = localStorage.getItem(ENABLED_KEY);
+			if (raw) return { ...def, ...JSON.parse(raw) };
+		} catch {}
+		return def;
+	}
+	let enabled = $state<Record<SeriesKey, boolean>>(loadEnabled());
+	function toggleSeries(k: SeriesKey) {
+		enabled[k] = !enabled[k];
+		try { localStorage.setItem(ENABLED_KEY, JSON.stringify(enabled)); } catch {}
+	}
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let cssW = $state(0);
@@ -162,7 +194,7 @@
 	$effect(() => {
 		histState.count; // redraw on new data
 		view.t0; view.t1; cursorT; cssW; cssH; // and on view / cursor / size changes
-		enabled.map; enabled.target; enabled.boost; enabled.bias; enabled.rpm; enabled.tps;
+		for (const ser of SERIES) enabled[ser.key]; // and on any series toggle
 		draw();
 	});
 
@@ -197,9 +229,38 @@
 		const iStart = Math.max(0, lowerBound(s, t0) - 1);
 		const iEnd = Math.min(s.length, lowerBound(s, t1) + 1);
 
-		// Fixed Y ranges per axis (no auto-scale) — см. AXIS_RANGE.
+		// Resolve per-axis ranges: fixed → as-is; auto → scan visible enabled series.
+		const resolved = {} as Record<AxisKey, { min: number; max: number }>;
+		const autoAcc = {} as Partial<Record<AxisKey, { min: number; max: number }>>;
+		for (const k of Object.keys(AXES) as AxisKey[]) {
+			const spec = AXES[k];
+			if (spec.kind === 'fixed') resolved[k] = { min: spec.min, max: spec.max };
+			else autoAcc[k] = { min: Infinity, max: -Infinity };
+		}
+		for (let i = iStart; i < iEnd; i++) {
+			const d = s[i];
+			for (const ser of SERIES) {
+				const acc = autoAcc[ser.axis];
+				if (!acc || !enabled[ser.key]) continue;
+				const v = d[ser.key];
+				if (Number.isFinite(v)) { if (v < acc.min) acc.min = v; if (v > acc.max) acc.max = v; }
+			}
+		}
+		for (const k of Object.keys(autoAcc) as AxisKey[]) {
+			const acc = autoAcc[k]!;
+			const spec = AXES[k] as { kind: 'auto'; sym?: boolean };
+			if (!Number.isFinite(acc.min)) { resolved[k] = { min: -1, max: 1 }; continue; }
+			if (spec.sym) {
+				const m = Math.max(Math.abs(acc.min), Math.abs(acc.max), 1e-6);
+				resolved[k] = { min: -m, max: m };
+			} else {
+				let mn = acc.min, mx = acc.max;
+				if (mn === mx) { mn -= 1; mx += 1; }
+				resolved[k] = { min: mn, max: mx };
+			}
+		}
 		const yFor = (v: number, axis: AxisKey) => {
-			const a = AXIS_RANGE[axis];
+			const a = resolved[axis];
 			return plotB - ((v - a.min) / (a.max - a.min || 1)) * plotH;
 		};
 
@@ -430,13 +491,15 @@
 		{/if}
 	</div>
 
-	<!-- Legend / per-series readout (tap a chip to toggle the series) -->
+	<!-- Legend / per-series readout — тап по чипу включает/выключает серию (выбор сохраняется).
+	     Залитый кружок = вкл, контур + зачёркнуто = выкл. -->
 	<div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 font-mono text-[11px] border-t border-[var(--color-dash-border)]/40">
 		{#each SERIES as ser (ser.key)}
-			<button onclick={() => (enabled[ser.key] = !enabled[ser.key])}
-				class="flex items-center gap-1 transition-opacity {enabled[ser.key] ? '' : 'opacity-35'}">
-				<span class="w-3 h-0.5 rounded-full" style="background:{ser.color}"></span>
-				<span class="text-[var(--color-dash-text-dim)]">{ser.label}</span>
+			<button onclick={() => toggleSeries(ser.key)}
+				class="flex items-center gap-1 transition-opacity {enabled[ser.key] ? '' : 'opacity-45'}">
+				<span class="w-2.5 h-2.5 rounded-full"
+					style="background:{enabled[ser.key] ? ser.color : 'transparent'}; box-shadow: inset 0 0 0 1.5px {ser.color}"></span>
+				<span class="text-[var(--color-dash-text-dim)] {enabled[ser.key] ? '' : 'line-through'}">{ser.label}</span>
 				<span class="tabular-nums font-bold" style="color:{ser.color}">{fmtVal(readSample?.[ser.key])}</span>
 			</button>
 		{/each}

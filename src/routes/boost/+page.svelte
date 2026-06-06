@@ -76,18 +76,21 @@
 		if (pwaName) return getParamShortName(pwaName);
 		return enumToFirmwareName(enumVal);
 	}
+	// Cache-слоты занимают enum [15..54]; системные параметры — < 15 и >= 55 (STATE/BIAS/MAPdot/…).
+	const isCacheSlot = (enumVal: number) =>
+		enumVal >= PARAM_CACHE_SLOT_START && enumVal < PARAM_CACHE_SLOT_START + 40;
 	// Подпись пункта в дропдауне выбора параметра: cache-слот → понятное имя сигнала
 	// (RPM/MAP/…), системный параметр → его firmware-имя.
 	function paramOptionLabel(enumVal: number): string {
-		return enumVal >= PARAM_CACHE_SLOT_START
+		return isCacheSlot(enumVal)
 			? getCacheSlotDisplayName(enumVal - PARAM_CACHE_SLOT_START)
 			: enumToFirmwareName(enumVal);
 	}
-	// Опции дропдаунов: системные + ТОЛЬКО замапленные cache-слоты (с подписью),
-	// чтобы не показывать пустые cache0…cache39.
+	// Опции дропдаунов: системные (вкл. производные MAPdot/TPSdot) + ТОЛЬКО замапленные
+	// cache-слоты (с подписью), чтобы не показывать пустые cache0…cache39.
 	let paramOptions = $derived(
 		allParamEntries().filter(p =>
-			p.enumVal < PARAM_CACHE_SLOT_START || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
+			!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
 		)
 	);
 
