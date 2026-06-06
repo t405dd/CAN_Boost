@@ -5,6 +5,7 @@
 	// streamed system param BST_ERR (enum 5).
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { boostSettings } from '$lib/stores/boost-settings.svelte';
+	import { histState, toggleChart } from '$lib/stores/boost-history.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 
 	let rpm = $derived(liveData.params[boostSettings.value.rpmSignalParam]?.value);
@@ -30,7 +31,12 @@
 </script>
 
 {#if any}
-	<div class="shrink-0 flex items-stretch w-full bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 font-mono">
+	<!-- Тап по полосе раскрывает/прячет график лога (boost-history). Подсветка — когда открыт. -->
+	<button onclick={toggleChart} title={t('chart.tapHint')}
+		class="shrink-0 flex items-stretch w-full border-b font-mono transition-colors
+			{histState.open
+				? 'bg-[var(--color-dash-accent)]/10 border-[var(--color-dash-accent)]/40'
+				: 'bg-[var(--color-dash-card)]/70 border-[var(--color-dash-border)]/40 hover:bg-[var(--color-dash-card-hover)]/60'}">
 		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
 			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">RPM</span>
 			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{rpm === undefined ? '—' : fmt(rpm, 0)}</span>
@@ -46,11 +52,18 @@
 			<span class="text-lg leading-none font-bold tabular-nums text-[var(--color-dash-text)]">{map === undefined ? '—' : fmt(map)}</span>
 		</div>
 
-		<div class="flex-1 flex flex-col items-center justify-center py-1.5">
+		<div class="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-[var(--color-dash-border)]/30">
 			<span class="text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)]">{t('hdr.err')}</span>
 			<span class="text-lg leading-none font-bold tabular-nums" style="color: {errColor}">
 				{err === undefined ? '—' : (err > 0 ? '+' : '') + fmt(err)}
 			</span>
 		</div>
-	</div>
+
+		<!-- Индикатор-шеврон: график свёрнут/раскрыт -->
+		<div class="flex items-center justify-center px-1.5 text-[var(--color-dash-text-dim)]">
+			<svg class="w-4 h-4 transition-transform {histState.open ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path d="M19 9l-7 7-7-7" />
+			</svg>
+		</div>
+	</button>
 {/if}

@@ -10,6 +10,8 @@
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
 	import CanOutBar from '$lib/components/CanOutBar.svelte';
 	import BoostLiveBar from '$lib/components/BoostLiveBar.svelte';
+	import BoostHistoryChart from '$lib/components/BoostHistoryChart.svelte';
+	import { histState, startHistory, stopHistory } from '$lib/stores/boost-history.svelte';
 	import { base } from '$app/paths';
 	import { version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
 	import { initDebugLog } from '$lib/stores/debug-log.svelte';
@@ -33,10 +35,13 @@
 		untrack(() => {
 			if (status === 'connected') {
 				hydrateOnConnect().catch((e) => console.error('[hydrate] аварийно прервана:', e));
+					// In-memory история наддува «с момента подключения» (питает раскрывающийся график).
+					startHistory();
 			} else {
 				// disconnected/reconnecting/connecting — чистим стора + in-flight промисы, чтобы следующий
 				// 'connected' (в т.ч. авто-реконнект через 'reconnecting') гидрировался заново, а не залипал.
 				resetHydration();
+					stopHistory();   // таймер глушим, буфер сохраняем — можно листать график и после обрыва
 			}
 			// Логгер: пауза записи при потере связи, авто-возобновление после непреднамеренного обрыва.
 			handleConnectionChange(status === 'connected');
@@ -181,9 +186,15 @@
 		<CanOutBar />
 	{/if}
 
-	<!-- Live boost strip: RPM / MAP / Error — всегда перед глазами на всех страницах -->
+	<!-- Live boost strip: RPM / MAP / Error — всегда перед глазами на всех страницах.
+	     Тап по полосе раскрывает график лога ниже. -->
 	{#if bleState.status === 'connected'}
 		<BoostLiveBar />
+	{/if}
+
+	<!-- Раскрывающийся график лога (история наддува с момента подключения) -->
+	{#if bleState.status === 'connected' && histState.open}
+		<BoostHistoryChart />
 	{/if}
 
 	<!-- Сквозной селектор карт буста: на всех страницах. Показываем сразу при подключении —

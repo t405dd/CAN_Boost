@@ -289,6 +289,13 @@ export default {
 	'hdr.stBias': 'BIAS',
 	'hdr.stCut': 'cut',
 
+	// Expandable in-memory boost history chart
+	'chart.title': 'Chart',
+	'chart.live': 'live',
+	'chart.toLive': 'to live',
+	'chart.waiting': 'Waiting for data…',
+	'chart.tapHint': 'Tap to show/hide the log chart',
+
 	// Client-side data logger
 	'clog.title': 'Data Log',
 	'clog.hint': 'Records live data locally on this device. The log survives BLE disconnects and page reloads. Share or download it when done.',

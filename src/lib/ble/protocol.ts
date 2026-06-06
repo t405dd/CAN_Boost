@@ -49,6 +49,8 @@ export const PARAM_CACHE_SLOT_START = 15;
 export const PARAM_BOOST_STATE = 55;
 // Флаг «цель недостижима» (актуатор на упоре + ошибка вне порога) — enum 56.
 export const PARAM_BOOST_UNREACHABLE = 56;
+// feedforward (duty из таблицы BIAS) — enum 57. Считает прошивка (единый источник правды).
+export const PARAM_BOOST_BIAS = 57;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
@@ -74,6 +76,7 @@ for (let i = 0; i < 40; i++) {
 }
 PARAM_NAMES[PARAM_BOOST_STATE] = 'BST_ST';
 PARAM_NAMES[PARAM_BOOST_UNREACHABLE] = 'BST_UNR';
+PARAM_NAMES[PARAM_BOOST_BIAS] = 'BST_BIAS';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.
