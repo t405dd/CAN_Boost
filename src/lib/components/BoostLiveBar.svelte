@@ -26,14 +26,12 @@
 			: Math.abs(err) < 15 ? 'var(--color-dash-warn)'
 			: 'var(--color-dash-danger)'
 	);
-
-	let any = $derived(
-		rpm !== undefined || tps !== undefined || map !== undefined || err !== undefined
-	);
 </script>
 
-{#if any}
-	<!-- Тап по полосе раскрывает/прячет график лога (boost-history). Подсветка — когда открыт. -->
+<!-- Полоса видна всегда при подключении (рендерится из +layout только при connected): это и живой
+     RPM/TPS/MAP, и единственный вход в график лога. НЕ гейтим по наличию данных — иначе при молчащей
+     шине (или выключенном бусте, когда ОШ скрыта) полоса исчезала бы вместе с кнопкой графика.
+     Тап по полосе раскрывает/прячет график (boost-history). Подсветка — когда открыт. -->
 	<button onclick={toggleChart} title={t('chart.tapHint')}
 		class="shrink-0 flex items-stretch w-full border-b font-mono transition-colors
 			{histState.open
@@ -70,4 +68,3 @@
 			</svg>
 		</div>
 	</button>
-{/if}
