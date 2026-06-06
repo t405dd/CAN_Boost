@@ -491,13 +491,17 @@
 		{/if}
 	</div>
 
-	<!-- Legend / per-series readout — тап по чипу включает/выключает серию (выбор сохраняется).
-	     Залитый кружок = вкл, контур + зачёркнуто = выкл. -->
-	<div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 font-mono text-[11px] border-t border-[var(--color-dash-border)]/40">
+	<!-- Legend / per-series readout — тап/клик по чипу включает/выключает ЛЮБУЮ серию
+	     (выбор сохраняется). Залитый кружок = вкл, контур + зачёркнуто = выкл.
+	     Крупная зона тапа + touch-manipulation, чтобы надёжно срабатывало на телефоне. -->
+	<div class="flex flex-wrap items-center gap-1 px-2 py-1.5 font-mono text-[11px] border-t border-[var(--color-dash-border)]/40 select-none">
 		{#each SERIES as ser (ser.key)}
-			<button onclick={() => toggleSeries(ser.key)}
-				class="flex items-center gap-1 transition-opacity {enabled[ser.key] ? '' : 'opacity-45'}">
-				<span class="w-2.5 h-2.5 rounded-full"
+			<button type="button" onclick={() => toggleSeries(ser.key)}
+				aria-pressed={enabled[ser.key]}
+				class="flex items-center gap-1 px-1.5 py-1 rounded touch-manipulation cursor-pointer
+					transition-colors active:bg-[var(--color-dash-card-hover)] hover:bg-[var(--color-dash-card-hover)]/60
+					{enabled[ser.key] ? '' : 'opacity-45'}">
+				<span class="w-2.5 h-2.5 rounded-full shrink-0"
 					style="background:{enabled[ser.key] ? ser.color : 'transparent'}; box-shadow: inset 0 0 0 1.5px {ser.color}"></span>
 				<span class="text-[var(--color-dash-text-dim)] {enabled[ser.key] ? '' : 'line-through'}">{ser.label}</span>
 				<span class="tabular-nums font-bold" style="color:{ser.color}">{fmtVal(readSample?.[ser.key])}</span>
