@@ -11,7 +11,7 @@ import { liveData } from './live-data.svelte';
 import { boostSettings } from './boost-settings.svelte';
 import { bleState } from './ble-connection.svelte';
 import { signalLabels } from './signal-labels.svelte';
-import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS, PARAM_MAP_DOT, PARAM_TPS_DOT, PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
+import { PARAM_BOOST_STATE, PARAM_BOOST_BIAS, PARAM_MAP_DOT, PARAM_TPS_DOT, PARAM_CACHE_SLOT_START, PARAM_CO_MUL_1, PARAM_CO_MUL_2, PARAM_CO_MUL_3, PARAM_CO_BASE } from '$lib/ble/protocol';
 
 export interface HistSample {
 	t: number; // ms since session start (monotonic, sorted)
@@ -25,6 +25,10 @@ export interface HistSample {
 	rpmdot: number; // BST_dRPM (14) — dRPM/dt, RPM/s (firmware)
 	mapdot: number; // MAPdot (58) — dMAP/dt, kPa/s (firmware)
 	tpsdot: number; // TPSdot (59) — dTPS/dt, %/s (firmware)
+	cobase: number; // COBase (63) — результат таблицы T1 (база), % (firmware)
+	comul1: number; // COmul1 (60) — результат таблицы-мультипликатора 1 (T2), % (firmware)
+	comul2: number; // COmul2 (61) — результат таблицы-мультипликатора 2 (T3), % (firmware)
+	comul3: number; // COmul3 (62) — результат таблицы-мультипликатора 3 (T4), % (firmware)
 	// Принятые CAN-сигналы (cache-слоты), резолвятся по подписи/настройке — NaN если не найдены.
 	knk: number; // детонация (knockSignalParam или слот с подписью knock)
 	afr: number; // AFR (факт)
@@ -104,6 +108,10 @@ function tick(): void {
 		rpmdot: p[14]?.value ?? NaN, // BST_dRPM
 		mapdot: p[PARAM_MAP_DOT]?.value ?? NaN,
 		tpsdot: p[PARAM_TPS_DOT]?.value ?? NaN,
+		cobase: p[PARAM_CO_BASE]?.value ?? NaN,
+		comul1: p[PARAM_CO_MUL_1]?.value ?? NaN,
+		comul2: p[PARAM_CO_MUL_2]?.value ?? NaN,
+		comul3: p[PARAM_CO_MUL_3]?.value ?? NaN,
 		knk: slotValue(p, knkEnum),
 		afr: slotValue(p, afrEnum),
 		afrTarget: slotValue(p, afrTgtEnum),

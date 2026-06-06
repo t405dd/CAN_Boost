@@ -26,6 +26,11 @@ const SYSTEM_PARAMS: [string, string, number][] = [
 	// Доступны как оси таблиц коррекции. ДОЛЖНЫ совпадать с constants.h.
 	['MAPdot', 'map_dot', 58],
 	['TPSdot', 'tps_dot', 59],
+	// Промежуточные результаты таблиц CO1 (enum 60..63) — телеметрия для графика/лога.
+	['COmul1', 'co_mul_1', 60],
+	['COmul2', 'co_mul_2', 61],
+	['COmul3', 'co_mul_3', 62],
+	['COBase', 'co_base', 63],
 ];
 
 // --- Cache slots (enum 15-54) ---

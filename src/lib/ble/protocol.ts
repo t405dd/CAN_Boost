@@ -54,11 +54,16 @@ export const PARAM_BOOST_BIAS = 57;
 // Производные сигналов (сглаженные в прошивке) — enum 58/59. RPMdot = BST_dRPM (14).
 export const PARAM_MAP_DOT = 58;
 export const PARAM_TPS_DOT = 59;
+// Промежуточные результаты таблиц CO1 (телеметрия) — enum 60..63. Считает прошивка.
+export const PARAM_CO_MUL_1 = 60;
+export const PARAM_CO_MUL_2 = 61;
+export const PARAM_CO_MUL_3 = 62;
+export const PARAM_CO_BASE = 63;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
 	1:  'TIME',
-	2:  'CO1',
+	2:  'CANOUT',
 	3:  'BST_OUT',
 	4:  'BST_TGT',
 	5:  'BST_ERR',
@@ -82,6 +87,10 @@ PARAM_NAMES[PARAM_BOOST_UNREACHABLE] = 'BST_UNR';
 PARAM_NAMES[PARAM_BOOST_BIAS] = 'BST_BIAS';
 PARAM_NAMES[PARAM_MAP_DOT] = 'MAPdot';
 PARAM_NAMES[PARAM_TPS_DOT] = 'TPSdot';
+PARAM_NAMES[PARAM_CO_MUL_1] = 'COmul1';
+PARAM_NAMES[PARAM_CO_MUL_2] = 'COmul2';
+PARAM_NAMES[PARAM_CO_MUL_3] = 'COmul3';
+PARAM_NAMES[PARAM_CO_BASE] = 'COBase';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.

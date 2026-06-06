@@ -80,7 +80,7 @@
 		<!-- Строка 2: прогресс-бар CO1 (только когда выход включён) -->
 		{#if co1 !== undefined}
 			<div class="flex items-center gap-1.5 px-3 py-1 {boostOut !== undefined || st ? 'border-t border-[var(--color-dash-border)]/30' : ''}">
-				<span class="text-[var(--color-dash-text-dim)] shrink-0">CO1</span>
+				<span class="text-[var(--color-dash-text-dim)] shrink-0">CANOUT</span>
 				<span class="text-[var(--color-dash-text)] font-bold tabular-nums w-12 text-right shrink-0">{fmt(co1)}</span>
 				<div class="flex-1 min-w-16 h-1.5 rounded-full bg-[var(--color-dash-border)]/60 overflow-hidden">
 					<div class="h-full bg-[var(--color-dash-text)]/70 transition-all duration-100" style="width: {co1Pct}%"></div>

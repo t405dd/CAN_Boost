@@ -17,10 +17,11 @@
 	type SeriesKey =
 		| 'rpm' | 'map' | 'target' | 'boost' | 'bias' | 'tps' | 'co1'
 		| 'rpmdot' | 'mapdot' | 'tpsdot'
-		| 'knk' | 'afr' | 'afrTarget' | 'ign';
+		| 'knk' | 'afr' | 'afrTarget' | 'ign'
+		| 'cobase' | 'comul1' | 'comul2' | 'comul3';
 	type AxisKey =
 		| 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot'
-		| 'knk' | 'afr' | 'ign';
+		| 'knk' | 'afr' | 'ign' | 'mul';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
 	// Axis specs. Основные сигналы — фикс-диапазоны (линии не прыгают при прокрутке,
@@ -37,7 +38,8 @@
 		tpsdot: { kind: 'auto', sym: true }, // dTPS/dt
 		knk: { kind: 'auto' }, // детонация (счёт/град)
 		afr: { kind: 'auto' }, // AFR факт + цель (общая ось — сравнимы)
-		ign: { kind: 'auto' } // угол зажигания, град
+		ign: { kind: 'auto' }, // угол зажигания, град
+		mul: { kind: 'fixed', min: 0, max: 200 } // COmul1/2/3 (множители %, нейтраль 100; COBase — на оси pct)
 	};
 
 	const SERIES: Series[] = [
@@ -47,14 +49,18 @@
 		{ key: 'bias',   label: 'BIAS',   color: '#ff6b35', axis: 'pct' },
 		{ key: 'rpm',    label: 'RPM',    color: '#9ca3af', axis: 'rpm' },
 		{ key: 'tps',    label: 'TPS',    color: '#c084fc', axis: 'tps' },
-		{ key: 'co1',    label: 'CO1',    color: '#f472b6', axis: 'pct' },
+		{ key: 'co1',    label: 'CANOUT', color: '#f472b6', axis: 'pct' },
 		{ key: 'rpmdot', label: 'RPMdot', color: '#60a5fa', axis: 'rpmdot' },
 		{ key: 'mapdot', label: 'MAPdot', color: '#2dd4bf', axis: 'mapdot' },
 		{ key: 'tpsdot', label: 'TPSdot', color: '#e879f9', axis: 'tpsdot' },
 		{ key: 'knk',       label: 'KNK',    color: '#f87171', axis: 'knk' },
 		{ key: 'afr',       label: 'AFR',    color: '#bef264', axis: 'afr' },
 		{ key: 'afrTarget', label: 'AFRtgt', color: '#84cc16', axis: 'afr' },
-		{ key: 'ign',       label: 'IGN',    color: '#818cf8', axis: 'ign' }
+		{ key: 'ign',       label: 'IGN',    color: '#818cf8', axis: 'ign' },
+		{ key: 'cobase',    label: 'COBase', color: '#fbbf24', axis: 'pct' },
+		{ key: 'comul1',    label: 'COmul1', color: '#fb923c', axis: 'mul' },
+		{ key: 'comul2',    label: 'COmul2', color: '#22d3ee', axis: 'mul' },
+		{ key: 'comul3',    label: 'COmul3', color: '#a78bfa', axis: 'mul' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
@@ -77,7 +83,8 @@
 		return {
 			map: true, target: true, boost: true, bias: true, rpm: true, tps: true,
 			co1: false, rpmdot: false, mapdot: false, tpsdot: false,
-			knk: false, afr: false, afrTarget: false, ign: false
+			knk: false, afr: false, afrTarget: false, ign: false,
+			cobase: false, comul1: false, comul2: false, comul3: false
 		};
 	}
 	function loadEnabled(): Record<SeriesKey, boolean> {
