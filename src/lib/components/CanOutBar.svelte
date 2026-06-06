@@ -15,6 +15,9 @@
 	let state = $derived(liveData.params[PARAM_BOOST_STATE]?.value);
 
 	let boostPct = $derived(boostOut === undefined ? 0 : Math.max(0, Math.min(100, boostOut)));
+	// CO1 рисуем как дюти 0–100 % (как T1 Base / boost). Число рядом покажет реальное значение,
+	// если выход выйдет за 100.
+	let co1Pct = $derived(co1 === undefined ? 0 : Math.max(0, Math.min(100, co1)));
 
 	function fmt(v: number, d = 1): string {
 		return Number.isInteger(v) ? String(v) : v.toFixed(d);
@@ -42,37 +45,44 @@
 	);
 </script>
 
-{#if boostOut !== undefined || co1 !== undefined}
-	<div class="shrink-0 flex items-center gap-3 px-3 py-1 bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 text-[10px] font-mono overflow-x-auto">
-		<span class="text-[var(--color-dash-text-dim)] uppercase tracking-wider shrink-0">{t('hdr.canOut')}</span>
-
-		{#if boostOut !== undefined}
-			<div class="flex items-center gap-1.5 shrink-0">
-				<span class="text-[var(--color-dash-text-dim)]">BOOST</span>
-				<span class="text-[var(--color-dash-accent)] font-bold tabular-nums w-12 text-right">{fmt(boostOut)}%</span>
-				<div class="w-16 h-1.5 rounded-full bg-[var(--color-dash-border)]/60 overflow-hidden">
-					<div class="h-full bg-[var(--color-dash-accent)] transition-all duration-100" style="width: {boostPct}%"></div>
-				</div>
-			</div>
-		{/if}
-
-		{#if co1 !== undefined}
-			<div class="flex items-center gap-1.5 shrink-0">
-				<span class="text-[var(--color-dash-text-dim)]">CO1</span>
-				<span class="text-[var(--color-dash-text)] font-bold tabular-nums">{fmt(co1)}</span>
-			</div>
-		{/if}
-
-		<!-- Boost state chip: explains why the output is what it is -->
-		{#if st}
-			<div class="flex items-center gap-1 shrink-0 ml-auto px-1.5 py-0.5 rounded"
-				style="color: {st.color}; background-color: color-mix(in srgb, {st.color} 14%, transparent);">
-				{#if st.warn}
-					<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path d="M12 9v4m0 4h.01M10.3 3.86l-8.4 14.55A1.5 1.5 0 003.2 21h17.6a1.5 1.5 0 001.3-2.59L13.7 3.86a1.5 1.5 0 00-2.6 0z" />
-					</svg>
+{#if boostOut !== undefined || st || co1 !== undefined}
+	<div class="shrink-0 flex flex-col bg-[var(--color-dash-card)]/70 border-b border-[var(--color-dash-border)]/40 text-[10px] font-mono">
+		<!-- Строка 1: boost-выход + статус регулятора -->
+		{#if boostOut !== undefined || st}
+			<div class="flex items-center gap-3 px-3 py-1 overflow-x-auto">
+				{#if boostOut !== undefined}
+					<div class="flex flex-1 items-center gap-1.5 min-w-0">
+						<span class="text-[var(--color-dash-text-dim)] shrink-0">BOOST</span>
+						<span class="text-[var(--color-dash-accent)] font-bold tabular-nums w-12 text-right shrink-0">{fmt(boostOut)}%</span>
+						<div class="flex-1 min-w-16 h-1.5 rounded-full bg-[var(--color-dash-border)]/60 overflow-hidden">
+							<div class="h-full bg-[var(--color-dash-accent)] transition-all duration-100" style="width: {boostPct}%"></div>
+						</div>
+					</div>
 				{/if}
-				<span class="font-bold uppercase tracking-wide">{t(stKey)}</span>
+
+				<!-- Boost state chip: explains why the output is what it is -->
+				{#if st}
+					<div class="flex items-center gap-1 shrink-0 {boostOut === undefined ? 'ml-auto' : ''} px-1.5 py-0.5 rounded"
+						style="color: {st.color}; background-color: color-mix(in srgb, {st.color} 14%, transparent);">
+						{#if st.warn}
+							<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path d="M12 9v4m0 4h.01M10.3 3.86l-8.4 14.55A1.5 1.5 0 003.2 21h17.6a1.5 1.5 0 001.3-2.59L13.7 3.86a1.5 1.5 0 00-2.6 0z" />
+							</svg>
+						{/if}
+						<span class="font-bold uppercase tracking-wide">{t(stKey)}</span>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Строка 2: прогресс-бар CO1 (только когда выход включён) -->
+		{#if co1 !== undefined}
+			<div class="flex items-center gap-1.5 px-3 py-1 {boostOut !== undefined || st ? 'border-t border-[var(--color-dash-border)]/30' : ''}">
+				<span class="text-[var(--color-dash-text-dim)] shrink-0">CO1</span>
+				<span class="text-[var(--color-dash-text)] font-bold tabular-nums w-12 text-right shrink-0">{fmt(co1)}</span>
+				<div class="flex-1 min-w-16 h-1.5 rounded-full bg-[var(--color-dash-border)]/60 overflow-hidden">
+					<div class="h-full bg-[var(--color-dash-text)]/70 transition-all duration-100" style="width: {co1Pct}%"></div>
+				</div>
 			</div>
 		{/if}
 	</div>
