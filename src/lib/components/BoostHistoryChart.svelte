@@ -102,6 +102,12 @@
 		try { localStorage.setItem(ENABLED_KEY, JSON.stringify(enabled)); } catch {}
 	}
 
+	// Легенда не захламляется выключенными сериями: свёрнуто показываем только включённые,
+	// раскрытие (showAll) выводит все серии с «галочками», чтобы вернуть нужную.
+	let showAll = $state(false);
+	let legendSeries = $derived(showAll ? SERIES : SERIES.filter((s) => enabled[s.key]));
+	let hiddenCount = $derived(SERIES.filter((s) => !enabled[s.key]).length);
+
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let cssW = $state(0);
 	let cssH = $state(0);
@@ -511,11 +517,22 @@
 		{/if}
 	</div>
 
-	<!-- Legend / per-series readout — тап/клик по чипу включает/выключает ЛЮБУЮ серию
-	     (выбор сохраняется). Залитый кружок = вкл, контур + зачёркнуто = выкл.
-	     Крупная зона тапа + touch-manipulation, чтобы надёжно срабатывало на телефоне. -->
+	<!-- Legend / per-series readout — свёрнуто показываем только ВКЛЮЧЁННЫЕ серии (чтобы не
+	     захламлять). Кнопка-переключатель раскрывает все серии для выбора «галочками»; тап/клик
+	     по чипу включает/выключает серию (выбор сохраняется). Залитый кружок = вкл, контур +
+	     зачёркнуто = выкл. Крупная зона тапа + touch-manipulation для надёжности на телефоне. -->
 	<div class="flex flex-wrap items-center gap-1 px-2 py-1.5 font-mono text-[11px] border-t border-[var(--color-dash-border)]/40 select-none">
-		{#each SERIES as ser (ser.key)}
+		<button type="button" onclick={() => (showAll = !showAll)}
+			aria-pressed={showAll}
+			title={showAll ? t('chart.collapseSeries') : t('chart.pickSeries')}
+			class="flex items-center gap-1 px-1.5 py-1 rounded touch-manipulation cursor-pointer text-[var(--color-dash-text-dim)]
+				transition-colors active:bg-[var(--color-dash-card-hover)] hover:bg-[var(--color-dash-card-hover)]/60 hover:text-[var(--color-dash-accent)]">
+			<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				{#if showAll}<path stroke-linecap="round" d="M5 12h14" />{:else}<path stroke-linecap="round" d="M12 5v14M5 12h14" />{/if}
+			</svg>
+			{#if !showAll && hiddenCount > 0}<span class="tabular-nums">{hiddenCount}</span>{/if}
+		</button>
+		{#each legendSeries as ser (ser.key)}
 			<button type="button" onclick={() => toggleSeries(ser.key)}
 				aria-pressed={enabled[ser.key]}
 				class="flex items-center gap-1 px-1.5 py-1 rounded touch-manipulation cursor-pointer
@@ -524,7 +541,7 @@
 				<span class="w-2.5 h-2.5 rounded-full shrink-0"
 					style="background:{enabled[ser.key] ? ser.color : 'transparent'}; box-shadow: inset 0 0 0 1.5px {ser.color}"></span>
 				<span class="text-[var(--color-dash-text-dim)] {enabled[ser.key] ? '' : 'line-through'}">{ser.label}</span>
-				<span class="tabular-nums font-bold" style="color:{ser.color}">{fmtVal(readSample?.[ser.key])}</span>
+				{#if enabled[ser.key]}<span class="tabular-nums font-bold" style="color:{ser.color}">{fmtVal(readSample?.[ser.key])}</span>{/if}
 			</button>
 		{/each}
 		{#if stateInfo}

@@ -295,6 +295,8 @@ export default {
 	'chart.toLive': 'to live',
 	'chart.waiting': 'Waiting for data…',
 	'chart.tapHint': 'Tap to show/hide the log chart',
+	'chart.pickSeries': 'Pick series',
+	'chart.collapseSeries': 'Collapse',
 
 	// Client-side data logger
 	'clog.title': 'Data Log',

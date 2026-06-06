@@ -295,6 +295,8 @@ export default {
 	'chart.toLive': 'к реальному',
 	'chart.waiting': 'Ожидание данных…',
 	'chart.tapHint': 'Тап — открыть/скрыть график лога',
+	'chart.pickSeries': 'Выбрать серии',
+	'chart.collapseSeries': 'Свернуть',
 
 	// Клиентский логгер данных
 	'clog.title': 'Лог данных',
