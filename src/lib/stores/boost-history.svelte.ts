@@ -55,10 +55,15 @@ function resolveKnk(): number {
 	return findSlotEnum((l) => l.includes('knock') || l.includes('knk') || l.includes('детон'));
 }
 function resolveIgn(): number {
-	return findSlotEnum(
-		(l) => l.includes('ign') || l.includes('spark') || l.includes('timing') || l.includes('advance') ||
-			l.includes('угол') || l.includes('зажиг') || l.includes('опереж')
-	);
+	return findSlotEnum((l) => {
+		// MS3/MS3-CAN: финальный УОЗ в шине называется "ADV" (adv_deg, град. BTDC).
+		// Принимаем "adv" только как самостоятельное имя сигнала ("adv", "adv_deg"),
+		// но НЕ как суффикс группы "Advanced RT Data" — там у RPM/MAP/… ярлык вида
+		// "RPM (Adv G0)", иначе УОЗ ложно срезолвился бы на другой сигнал.
+		if (/\badv(?:_?deg)?\b/.test(l) && !/\(adv\s*g\d/.test(l)) return true;
+		return l.includes('ign') || l.includes('spark') || l.includes('timing') ||
+			l.includes('advance') || l.includes('угол') || l.includes('зажиг') || l.includes('опереж');
+	});
 }
 function resolveClt(): number {
 	const c = boostSettings.value.cltSignalParam;
