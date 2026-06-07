@@ -2,9 +2,9 @@
 	// Expandable live chart over the in-memory boost history (boost-history store).
 	// Series: RPM / MAP / target / boost / bias / TPS / CO1, derivatives RPMdot /
 	// MAPdot / TPSdot, and received signals knock / AFR / AFR target / ignition
-	// (resolved by cache-slot label). Same-unit pairs share a fixed axis (MAP↔TGT,
-	// boost↔bias, AFR↔AFRtgt) so they stay comparable; derivatives use auto-scaled
-	// symmetric axes, the rest auto-scaled.
+	// (resolved by cache-slot label). Fixed normalized axes: MAP↔TGT, boost↔bias,
+	// AFR↔AFRtgt (10–20), CLT (60–110 °C), MAT (0–60 °C) so lines don't jump while
+	// scrolling; derivatives use auto-scaled symmetric axes, the rest auto-scaled.
 	// A colored regulator-state band runs along the bottom.
 	//
 	// Touch-first: drag to scroll time, pinch / wheel to zoom, tap to drop a slice
@@ -22,7 +22,7 @@
 		| 'clt' | 'mat';
 	type AxisKey =
 		| 'kpa' | 'pct' | 'rpm' | 'tps' | 'rpmdot' | 'mapdot' | 'tpsdot'
-		| 'knk' | 'afr' | 'ign' | 'mul' | 'temp';
+		| 'knk' | 'afr' | 'ign' | 'mul' | 'clt' | 'mat';
 	interface Series { key: SeriesKey; label: string; color: string; axis: AxisKey; }
 
 	// Axis specs. Основные сигналы — фикс-диапазоны (линии не прыгают при прокрутке,
@@ -38,10 +38,11 @@
 		mapdot: { kind: 'auto', sym: true }, // dMAP/dt
 		tpsdot: { kind: 'auto', sym: true }, // dTPS/dt
 		knk: { kind: 'auto' }, // детонация (счёт/град)
-		afr: { kind: 'auto' }, // AFR факт + цель (общая ось — сравнимы)
+		afr: { kind: 'fixed', min: 10, max: 20 }, // AFR факт + цель (общая ось — сравнимы)
 		ign: { kind: 'auto' }, // угол зажигания, град
 		mul: { kind: 'fixed', min: 0, max: 200 }, // COmul1/2/3 (множители %, нейтраль 100; COBase — на оси pct)
-		temp: { kind: 'auto' } // CLT + MAT (общая ось — сравнимы), °C
+		clt: { kind: 'fixed', min: 60, max: 110 }, // CLT (охлаждайка), °C
+		mat: { kind: 'fixed', min: 0, max: 60 } // MAT (впуск), °C
 	};
 
 	const SERIES: Series[] = [
@@ -63,8 +64,8 @@
 		{ key: 'comul1',    label: 'COmul1', color: '#fb923c', axis: 'mul' },
 		{ key: 'comul2',    label: 'COmul2', color: '#22d3ee', axis: 'mul' },
 		{ key: 'comul3',    label: 'COmul3', color: '#a78bfa', axis: 'mul' },
-		{ key: 'clt',       label: 'CLT',    color: '#38bdf8', axis: 'temp' },
-		{ key: 'mat',       label: 'MAT',    color: '#fb7185', axis: 'temp' }
+		{ key: 'clt',       label: 'CLT',    color: '#38bdf8', axis: 'clt' },
+		{ key: 'mat',       label: 'MAT',    color: '#fb7185', axis: 'mat' }
 	];
 
 	// Regulator phase → { i18n key, color } (mirrors CanOutBar's STATES palette).
