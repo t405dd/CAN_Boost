@@ -19,6 +19,8 @@
 		 *  Если задан — он и есть «= NNN» над таблицей; браузерная интерполяция показывается
 		 *  лишь как тусклое превью-сверка. undefined → fallback на браузерный расчёт. */
 		liveResult?: number;
+		/** Имя параметра, который выдаёт таблица (напр. "COmul2") — подпись перед «= NNN». */
+		liveResultLabel?: string;
 		xAxisLabel?: string;
 		yAxisLabel?: string;
 		colorGradient?: boolean;
@@ -50,6 +52,7 @@
 		liveCursorX,
 		liveCursorY,
 		liveResult,
+		liveResultLabel,
 		xAxisLabel,
 		yAxisLabel,
 		colorGradient = false,
@@ -741,13 +744,13 @@
 			{/if}
 			{#if liveResult !== undefined}
 				<!-- Единый источник правды: значение из контроллера (то, что реально применяется). -->
-				<span class="text-[var(--color-dash-text)] font-mono font-bold">= {liveResult.toFixed(decimals)}</span>
+				<span class="text-[var(--color-dash-text)] font-mono font-bold">{#if liveResultLabel}{liveResultLabel} {/if}= {liveResult.toFixed(decimals)}</span>
 				{#if interpolatedValue !== null && Math.abs(interpolatedValue - liveResult) > 0.05}
 					<!-- Браузерная интерполяция расходится с контроллером → таблица на устройстве не та. -->
 					<span class="text-[var(--color-dash-text-dim)] font-mono" title="Расчёт в браузере по таблице на экране (для сверки). Расходится с контроллером ⇒ на устройстве лежит другая таблица или ось мертва.">≈ {interpolatedValue.toFixed(decimals)} превью</span>
 				{/if}
 			{:else if interpolatedValue !== null}
-				<span class="text-[var(--color-dash-text)] font-mono font-bold">= {interpolatedValue.toFixed(decimals)}</span>
+				<span class="text-[var(--color-dash-text)] font-mono font-bold">{#if liveResultLabel}{liveResultLabel} {/if}= {interpolatedValue.toFixed(decimals)}</span>
 			{/if}
 			{#if !readOnly}
 				<button onclick={() => liveEditMode = !liveEditMode}

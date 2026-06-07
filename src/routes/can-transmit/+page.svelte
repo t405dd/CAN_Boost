@@ -71,6 +71,7 @@
 	// применяется к CO1. T1→COBase, T2/T3/T4→COmul1/2/3. Показываем над таблицей вместо
 	// браузерного пересчёта — иначе число врёт, если на устройстве лежит другая таблица/мёртвая ось.
 	const TABLE_RESULT_PARAM = [PARAM_CO_BASE, PARAM_CO_MUL_1, PARAM_CO_MUL_2, PARAM_CO_MUL_3];
+	const TABLE_RESULT_LABEL = ['COBase', 'COmul1', 'COmul2', 'COmul3'];
 	function getFirmwareTableResult(idx: number): number | undefined {
 		return liveData.params[TABLE_RESULT_PARAM[idx]]?.value;
 	}
@@ -362,6 +363,7 @@
 							liveCursorX={getLiveValue(table.xAxisParamType)}
 							liveCursorY={table.hasYAxis ? getLiveValue(table.yAxisParamType) : undefined}
 							liveResult={getFirmwareTableResult(idx)}
+							liveResultLabel={TABLE_RESULT_LABEL[idx]}
 							resizable={true}
 							minCols={1}
 							onResize={(r, c) => onResize(idx, r, c)}
