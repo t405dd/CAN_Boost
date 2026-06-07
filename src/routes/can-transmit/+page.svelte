@@ -14,8 +14,8 @@
 	import { getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { co1Config, loadCo1Config, defaultCo1Settings } from '$lib/stores/co1-settings.svelte';
 
-	const TABLE_LABELS_KEYS = ['canTx.t1base', 'canTx.t2mult', 'canTx.t3trim', 'canTx.t4trim'] as const;
-	const TABLE_IDS = ['T1_Base', 'T2_Multiplier', 'T3_TrimX', 'T4_TrimX2'];
+	const TABLE_LABELS_KEYS = ['canTx.t1base', 'canTx.t2mul1', 'canTx.t3mul2', 'canTx.t4mul3'] as const;
+	const TABLE_IDS = ['T1_Base', 'T2_Multiplier1', 'T3_Multiplier2', 'T4_Multiplier3'];
 	const MAX_SIZE = 16;
 
 	// Gradient bounds per table type

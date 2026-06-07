@@ -192,9 +192,9 @@ export default {
 	// Страница CAN Transmit
 	'canTx.title': 'CAN Передача',
 	'canTx.t1base': 'T1 База',
-	'canTx.t2mult': 'Мультипликатор 1',
-	'canTx.t3trim': 'Мультипликатор 2',
-	'canTx.t4trim': 'Мультипликатор 3',
+	'canTx.t2mul1': 'Мультипликатор 1',
+	'canTx.t3mul2': 'Мультипликатор 2',
+	'canTx.t4mul3': 'Мультипликатор 3',
 	'canTx.is2d': '2D (ось Y)',
 	'canTx.xParam': 'Параметр X',
 	'canTx.yParam': 'Параметр Y',

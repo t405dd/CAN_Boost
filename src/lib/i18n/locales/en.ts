@@ -192,9 +192,9 @@ export default {
 	// CAN Transmit page
 	'canTx.title': 'CAN Transmit',
 	'canTx.t1base': 'T1 Base',
-	'canTx.t2mult': 'Multiplier 1',
-	'canTx.t3trim': 'Multiplier 2',
-	'canTx.t4trim': 'Multiplier 3',
+	'canTx.t2mul1': 'Multiplier 1',
+	'canTx.t3mul2': 'Multiplier 2',
+	'canTx.t4mul3': 'Multiplier 3',
 	'canTx.is2d': '2D (Y-axis)',
 	'canTx.xParam': 'X-axis Param',
 	'canTx.yParam': 'Y-axis Param',
