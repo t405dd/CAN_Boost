@@ -4,6 +4,7 @@
 
 import { readJsonConfig } from '$lib/ble/chunked-transfer';
 import { SVC_BOOST, CHR_BOOST_SETTINGS } from '$lib/ble/uuids';
+import { settingsToDisplay } from '$lib/utils/boost-pid-scale';
 import type { BoostControllerSettings } from '$lib/types/config';
 
 export function defaultBoostSettings(): BoostControllerSettings {
@@ -14,7 +15,8 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		canByteOffset: 0,
 		canBigEndian: true,
 		canSendIntervalMs: 20,
-		kp: 2.0, ki: 0.5, kd: 0.3,
+		// display-единицы (MS3-числа = эффективное ×100); дефолт = MS3 P10/I5/D2
+		kp: 10, ki: 5, kd: 2,
 		iWindupLimit: 50.0,
 		dFilterAlpha: 0.2,
 		biasOnly: false,
@@ -40,10 +42,10 @@ export function defaultBoostSettings(): BoostControllerSettings {
 		corr2YAxisParam: 0,
 		learnKpRate: 0.05,
 		learnKdRate: 0.05,
-		kpMin: 0.1,
-		kpMax: 20.0,
-		kdMin: 0.0,
-		kdMax: 10.0,
+		kpMin: 10,      // display = эффективное 0.1 ×100
+		kpMax: 2000,    // display = эффективное 20  ×100
+		kdMin: 0,
+		kdMax: 1000,    // display = эффективное 10  ×100
 		oscillationThreshold: 3,
 		oscillationWindowMs: 1000.0,
 		persistentErrorTimeMs: 3000.0,
@@ -76,7 +78,8 @@ export function loadBoostSettings(): Promise<boolean> {
 	_inFlight = (async () => {
 		const s = await readJsonConfig<BoostControllerSettings>(SVC_BOOST, CHR_BOOST_SETTINGS);
 		if (s) {
-			boostSettings.value = s;
+			// эффективные коэффициенты с устройства → display (×100); остальные поля без изменений
+			boostSettings.value = settingsToDisplay(s);
 			boostSettings.loaded = true;
 			boostSettings.epoch++;
 			return true;

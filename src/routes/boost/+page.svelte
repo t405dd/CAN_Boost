@@ -7,6 +7,7 @@
 	import type { BoostControllerSettings, BoostTable, BoostCorrectionTable, BoostPidTables } from '$lib/types/config';
 	import { boostMaps, loadBoostMaps, saveBoostMapsMeta, copyBoostMapFrom } from '$lib/stores/boost-maps.svelte';
 	import { boostSettings, loadBoostSettings, defaultBoostSettings } from '$lib/stores/boost-settings.svelte';
+	import { settingsToDevice, gridToDisplay, gridToDevice, BOOST_PID_DISPLAY_SCALE } from '$lib/utils/boost-pid-scale';
 	import { calBaseline, snapCalBaseline, clearCalBaselines } from '$lib/stores/boost-calibration.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 	import TableEditor from '$lib/components/TableEditor.svelte';
@@ -144,6 +145,14 @@
 		}
 		return d;
 	});
+	let learnAuthData = $derived.by(() => {
+		const t = learnTables.auth;
+		const d: number[][] = [];
+		for (let r = 0; r < t.numRows; r++) {
+			d.push(t.data[r] ? [...t.data[r]] : Array(t.numCols).fill(30));
+		}
+		return d;
+	});
 
 
 	function showStatus(msg: string, durationMs = 3000) {
@@ -195,11 +204,14 @@
 		return { numCols: cols, numRows: rows, xAxisValues: xAxis, yAxisValues: yAxis, data };
 	}
 
+	// Kp/Kd — в display-единицах (MS3-числа = эффективное ×100): дефолт = MS3 P10/D2.
+	// ki — таблица I-term (не масштабируется, не показывается как коэффициент усиления).
 	function defaultLearnTables(): BoostPidTables {
 		return {
 			ki: defaultLearnTable(50),
-			kp: defaultLearnTable(2.0),
-			kd: defaultLearnTable(0.3)
+			kp: defaultLearnTable(10),
+			kd: defaultLearnTable(2),
+			auth: defaultLearnTable(30)   // PID authority limit (%duty) — НЕ масштабируется ×100
 		};
 	}
 
@@ -247,11 +259,17 @@
 	async function loadLearn() {
 		const learn = await readJsonConfig<BoostPidTables>(SVC_BOOST, CHR_BOOST_LEARN);
 		if (learn) {
-			if (learn.ki) learnTables = learn;            // новый формат { ki, kp, kd }
-			else learnTables = {                          // legacy: одна таблица (I-term)
+			if (learn.ki) {                               // новый формат { ki, kp, kd, auth }
+				// kp/kd с устройства — эффективные → display (×100); ki (I-term) и auth (%duty) не трогаем
+				learn.kp.data = gridToDisplay(learn.kp.data);
+				learn.kd.data = gridToDisplay(learn.kd.data);
+				if (!learn.auth) learn.auth = defaultLearnTable(30);   // старая прошивка без authority
+				learnTables = learn;
+			} else learnTables = {                        // legacy: одна таблица (I-term)
 				ki: learn as unknown as BoostTable,
-				kp: defaultLearnTable(2.0),
-				kd: defaultLearnTable(0.3)
+				kp: defaultLearnTable(10),                // display-единицы
+				kd: defaultLearnTable(2),
+				auth: defaultLearnTable(30)
 			};
 		}
 		loaded.learn = true;
@@ -328,7 +346,8 @@
 	async function saveSettings() {
 		saving = true;
 		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settings);
+			// display → эффективные (÷100) на снимке; settings/стор остаются в display-единицах
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settingsToDevice($state.snapshot(settings)));
 			if (ok) boostSettings.value = $state.snapshot(settings);  // стор = то, что на устройстве (без бампа epoch → без переклона)
 			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
@@ -398,7 +417,15 @@
 	async function saveLearnTables() {
 		saving = true;
 		try {
-			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_LEARN, learnTables);
+			// kp/kd: display → эффективные (÷100) на снимке; ki без изменений. learnTables остаётся в display.
+			const snap = $state.snapshot(learnTables);
+			const payload: BoostPidTables = {
+				ki: snap.ki,
+				kp: { ...snap.kp, data: gridToDevice(snap.kp.data) },
+				kd: { ...snap.kd, data: gridToDevice(snap.kd.data) },
+				auth: snap.auth   // %duty — без масштабирования
+			};
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_LEARN, payload);
 			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
 			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
@@ -426,7 +453,7 @@
 		saving = true;
 		try {
 			const okTbl = await writeJsonConfig(SVC_BOOST, CHR_BOOST_DELTA_MAP, deltaMapTable);
-			const okSet = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settings);
+			const okSet = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settingsToDevice($state.snapshot(settings)));
 			if (okSet) boostSettings.value = $state.snapshot(settings);  // стор = то, что на устройстве
 			showStatus(okTbl && okSet ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
@@ -442,7 +469,9 @@
 	//     (сброс базлайна) — чтобы оценить, на сколько изменились коэффициенты перед записью. ---
 	const HL_FLOOR = 0.15;   // минимальная видимость любого изменения
 	// |суммарное изменение| → полная плотность (свой масштаб на таблицу; легко крутится)
-	const HL_SCALE = { ki: 15, kp: 3, kd: 1.5, bias: 25 } as const;
+	// kp/kd — в display-единицах (×100 от эффективных), поэтому их масштабы подсветки тоже ×100,
+	// чтобы чувствительность раскраски «изменилось при обучении» осталась прежней. ki/bias не масштабируются.
+	const HL_SCALE = { ki: 15, kp: 300, kd: 150, bias: 25 } as const;
 	type HlKey = keyof typeof HL_SCALE;
 
 	// Базлайн = снимок значений на старте калибровки. Хранится в ГЛОБАЛЬНОМ сторе
@@ -492,7 +521,9 @@
 			if (!key) continue;
 			const tbl = key === 'bias' ? biasTable : learnTables[key];
 			if (!tbl?.data || d.row >= tbl.data.length || d.col >= (tbl.data[d.row]?.length ?? 0)) continue;
-			tbl.data[d.row][d.col] = d.value;   // мутация $state → перерисует значение И подсветку (derived hl* = текущее−базлайн)
+			// Kp/Kd приходят в эффективных единицах → display (×100); Ki/BIAS не масштабируются
+			const v = (key === 'kp' || key === 'kd') ? d.value * BOOST_PID_DISPLAY_SCALE : d.value;
+			tbl.data[d.row][d.col] = v;   // мутация $state → перерисует значение И подсветку (derived hl* = текущее−базлайн)
 		}
 	}
 
@@ -558,15 +589,16 @@
 	}
 
 	// --- Ручное редактирование таблиц обучения Ki/Kp/Kd (key = ключ в learnTables) ---
-	const LEARN_FILL: Record<'ki' | 'kp' | 'kd', number> = { ki: 0, kp: 2.0, kd: 0.3 };
-	function onLearnDataChange(key: 'ki' | 'kp' | 'kd', data: number[][]) {
+	// Заполнение новых ячеек при ресайзе — в display-единицах (как и сами таблицы Kp/Kd).
+	const LEARN_FILL: Record<'ki' | 'kp' | 'kd' | 'auth', number> = { ki: 0, kp: 10, kd: 2, auth: 30 };
+	function onLearnDataChange(key: 'ki' | 'kp' | 'kd' | 'auth', data: number[][]) {
 		learnTables[key].data = data;
 	}
-	function onLearnAxisChange(key: 'ki' | 'kp' | 'kd', axis: 'x' | 'y', values: number[]) {
+	function onLearnAxisChange(key: 'ki' | 'kp' | 'kd' | 'auth', axis: 'x' | 'y', values: number[]) {
 		if (axis === 'x') learnTables[key].xAxisValues = values;
 		else learnTables[key].yAxisValues = values;
 	}
-	function onLearnResize(key: 'ki' | 'kp' | 'kd', rows: number, cols: number) {
+	function onLearnResize(key: 'ki' | 'kp' | 'kd' | 'auth', rows: number, cols: number) {
 		learnTables[key] = resizeTable(learnTables[key], rows, cols, LEARN_FILL[key]);
 	}
 
@@ -1202,8 +1234,8 @@
 								numRows={learnTables.kp.numRows}
 								decimals={1}
 								colorGradient={true}
-								gradientMin={20}
-								gradientMax={300}
+								gradientMin={0}
+								gradientMax={200}
 								highlight={hlKp}
 								xAxisLabel="RPM"
 								yAxisLabel="TPS"
@@ -1227,8 +1259,8 @@
 								numRows={learnTables.kd.numRows}
 								decimals={1}
 								colorGradient={true}
-								gradientMin={20}
-								gradientMax={500}
+								gradientMin={0}
+								gradientMax={50}
 								highlight={hlKd}
 								xAxisLabel="RPM"
 								yAxisLabel="TPS"
@@ -1238,6 +1270,30 @@
 								onResize={(r, c) => onLearnResize('kd', r, c)}
 								onDataChange={(d) => onLearnDataChange('kd', d)}
 								onAxisChange={(a, v) => onLearnAxisChange('kd', a, v)}
+							/>
+						</div>
+						<!-- PID authority limit (%duty): кламп |P+I+D| вокруг BIAS по зоне. НЕ масштабируется ×100. -->
+						<div class="space-y-1">
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase font-bold inline-flex items-center gap-0.5">{t('boost.learnTableAuth')}<HelpTip key="help.boost.learnTableAuth" /></span>
+							<TableEditor
+								data={learnAuthData}
+								dimmed={!loaded.learn}
+								xAxisValues={learnTables.auth.xAxisValues}
+								yAxisValues={learnTables.auth.yAxisValues}
+								numCols={learnTables.auth.numCols}
+								numRows={learnTables.auth.numRows}
+								decimals={0}
+								colorGradient={true}
+								gradientMin={0}
+								gradientMax={100}
+								xAxisLabel="RPM"
+								yAxisLabel="TPS"
+								liveCursorX={liveRpm}
+								liveCursorY={liveTps}
+								resizable={true}
+								onResize={(r, c) => onLearnResize('auth', r, c)}
+								onDataChange={(d) => onLearnDataChange('auth', d)}
+								onAxisChange={(a, v) => onLearnAxisChange('auth', a, v)}
 							/>
 						</div>
 						<div class="flex gap-2 flex-wrap">

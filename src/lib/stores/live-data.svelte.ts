@@ -3,6 +3,7 @@
 
 import { onLiveData } from '$lib/ble/connection';
 import { decodeLiveDataPacket, isUserParam, getUserParamIndex, PARAM_NAMES, PARAM_CACHE_SLOT_START, buildCacheSlotLabels } from '$lib/ble/protocol';
+import { BOOST_PID_DISPLAY_SCALE } from '$lib/utils/boost-pid-scale';
 import type { CanMessageConfig } from '$lib/types/config';
 
 export interface ParamValue {
@@ -72,9 +73,16 @@ if (typeof window !== 'undefined') {
 		logCounter++;
 
 		for (const entry of packet.entries) {
+			// BST_KP(9)/BST_KD(10) — эффективные коэффициенты регулятора; приводим к display-масштабу
+			// (×100), чтобы лог/график совпадали с таблицами Kp/Kd. P/I/D-вклады (6/7/8) — это %duty,
+			// зонные множители (11/12) — безразмерные, их НЕ трогаем.
+			const value =
+				entry.paramType === 9 || entry.paramType === 10
+					? entry.value * BOOST_PID_DISPLAY_SCALE
+					: entry.value;
 			liveData.params[entry.paramType] = {
 				name: getParamName(entry.paramType),
-				value: entry.value,
+				value,
 				paramType: entry.paramType,
 				lastUpdate: now
 			};

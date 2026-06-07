@@ -320,6 +320,7 @@ export interface BoostPidTables {
 	ki: BoostTable;
 	kp: BoostTable;
 	kd: BoostTable;
+	auth: BoostTable;   // PID authority limit по зонам (%duty), кламп |P+I+D|. Не масштабируется ×100.
 }
 
 // --- Boost Maps (4 switchable maps) ---
