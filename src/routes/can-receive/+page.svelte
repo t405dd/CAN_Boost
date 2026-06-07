@@ -5,6 +5,7 @@
 	import { type CanMessageConfig, type CanSignalConfig, type CanSignalDataType, CAN_DATA_TYPE_NAMES } from '$lib/types/config';
 	import { setCacheLabelsFromConfig } from '$lib/stores/live-data.svelte';
 	import { loadSignalLabels } from '$lib/stores/signal-labels.svelte';
+	import { loadBoostSettings } from '$lib/stores/boost-settings.svelte';
 	import { normalizeTempUnit } from '$lib/utils/param-mapping';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -28,6 +29,42 @@
 		{ value: 4, label: 'INT32' },
 		{ value: 5, label: 'UINT32' }
 	];
+
+	// Роль сигнала (значения совпадают с firmware SignalRole). Назначение роли делает
+	// сигнал источником для буст-контроллера и производных MAPdot/RPMdot/TPSdot.
+	const SIGNAL_ROLES = [
+		{ value: 0, labelKey: 'canRx.roleNone' },
+		{ value: 1, labelKey: 'canRx.roleMap' },
+		{ value: 2, labelKey: 'canRx.roleRpm' },
+		{ value: 3, labelKey: 'canRx.roleTps' },
+		{ value: 4, labelKey: 'canRx.roleKnock' },
+		{ value: 5, labelKey: 'canRx.roleClt' }
+	] as const;
+
+	// Подсказка роли по имени — чтобы каталог/пресет назначали MAP/RPM/TPS/CLT/Knock сразу.
+	function inferRole(...names: (string | undefined)[]): number {
+		for (const raw of names) {
+			const n = (raw ?? '').toLowerCase();
+			if (n === 'map') return 1;
+			if (n === 'rpm') return 2;
+			if (n === 'tps') return 3;
+			if (n === 'knock' || n === 'knk') return 4;
+			if (n === 'clt' || n === 'coolant') return 5;
+		}
+		return 0;
+	}
+
+	// Какая роль каким сигналом уже занята (первый встретившийся). Для блокировки
+	// повторного назначения одной роли двум сигналам.
+	let assignedRoles = $derived.by(() => {
+		const m = new Map<number, CanSignalConfig>();
+		for (const msg of messages)
+			for (const s of msg.signals)
+				if (s.role > 0 && !m.has(s.role)) m.set(s.role, s);
+		return m;
+	});
+	const roleTakenByOther = (role: number, sig: CanSignalConfig) =>
+		role > 0 && assignedRoles.has(role) && assignedRoles.get(role) !== sig;
 
 	const MAX_MESSAGES = 10;
 	const MAX_SIGNALS = 8;
@@ -70,6 +107,7 @@
 				for (const msg of data) {
 					for (const sig of msg.signals ?? []) {
 						sig.userUnit = normalizeTempUnit(sig.userUnit || '', sig.requiresFtoC);
+							sig.role = sig.role ?? 0;   // старые конфиги без роли
 					}
 				}
 				messages = data;
@@ -95,6 +133,9 @@
 				// и перечитываем с устройства (пикеры/оси), чтобы пропали "cache*".
 				setCacheLabelsFromConfig(messages);
 				await loadSignalLabels(true);   // force — слоты кэша перемапились, нужен свежий список
+				// Прошивка перерезолвила роли → источники буста/производных (*SignalParam).
+				// Перечитываем настройки буста, чтобы read-only сводка и живые бары были свежими.
+				await loadBoostSettings();
 			}
 			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
 		} catch (e) {
@@ -140,7 +181,8 @@
 			divider: 1,
 			offset: 0,
 			requiresFtoC: false,
-			requiresVssProcessing: false
+			requiresVssProcessing: false,
+			role: 0
 		});
 	}
 
@@ -191,7 +233,8 @@
 				divider: s.divider,
 				offset: s.offset,
 				requiresFtoC: s.requiresFtoC,
-				requiresVssProcessing: s.requiresVssProcessing
+				requiresVssProcessing: s.requiresVssProcessing,
+				role: assignedRoles.has(inferRole(s.pdfName, s.friendlyName)) ? 0 : inferRole(s.pdfName, s.friendlyName)
 			});
 			added++;
 			enabled++;
@@ -248,7 +291,8 @@
 						divider: s.divider,
 						offset: s.offset,
 						requiresFtoC: s.requiresFtoC,
-						requiresVssProcessing: s.requiresVssProcessing
+						requiresVssProcessing: s.requiresVssProcessing,
+						role: inferRole(s.pdfName, s.friendlyName)
 					}))
 				};
 				// Если группа с таким CAN ID уже есть — ЗАМЕНЯЕМ её правильной из пресета
@@ -406,6 +450,7 @@
 									<thead>
 										<tr class="text-[var(--color-dash-text-dim)] uppercase border-b border-[var(--color-dash-border)]/30">
 											<th class="text-left py-1 px-1 font-normal">{t('common.name')}</th>
+											<th class="text-left py-1 px-1 font-normal"><span class="inline-flex items-center gap-0.5">{t('canRx.role')}<HelpTip key="help.canRx.role" /></span></th>
 											<th class="text-left py-1 px-1 font-normal"><span class="inline-flex items-center gap-0.5">{t('canRx.label')}<HelpTip key="help.canRx.label" /></span></th>
 											<th class="text-left py-1 px-1 font-normal"><span class="inline-flex items-center gap-0.5">{t('common.unit')}<HelpTip key="help.canRx.unit" /></span></th>
 											<th class="text-center py-1 px-1 font-normal"><span class="inline-flex items-center gap-0.5">{t('canRx.start')}<HelpTip key="help.canRx.startByte" /></span></th>
@@ -429,6 +474,15 @@
 												<td class="py-1 px-1">
 													<input type="text" bind:value={sig.signalName}
 														class="w-20 px-1 py-0.5 text-[10px] rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" />
+												</td>
+												<!-- Role (источник для буста/производных) -->
+												<td class="py-1 px-1">
+													<select bind:value={sig.role}
+														class="w-20 px-1 py-0.5 text-[10px] rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] focus:border-[var(--color-dash-accent)] focus:outline-none {sig.role > 0 ? 'border-[var(--color-dash-accent)]' : ''}">
+														{#each SIGNAL_ROLES as r}
+															<option value={r.value} disabled={roleTakenByOther(r.value, sig)}>{t(r.labelKey)}</option>
+														{/each}
+													</select>
 												</td>
 												<!-- User Label -->
 												<td class="py-1 px-1">

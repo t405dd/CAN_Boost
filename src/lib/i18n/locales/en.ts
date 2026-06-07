@@ -165,6 +165,13 @@ export default {
 	'canRx.dlc': 'DLC',
 	'canRx.extended': 'Extended',
 	'canRx.label': 'Label',
+	'canRx.role': 'Role',
+	'canRx.roleNone': '—',
+	'canRx.roleMap': 'MAP',
+	'canRx.roleRpm': 'RPM',
+	'canRx.roleTps': 'TPS',
+	'canRx.roleKnock': 'Knock',
+	'canRx.roleClt': 'CLT',
 	'canRx.start': 'Start',
 	'canRx.len': 'Len',
 	'canRx.type': 'Type',
@@ -559,7 +566,8 @@ export default {
 	'boost.deltaMap': 'Spool / PID handoff',
 	'boost.deltaMapDesc': 'Error tolerance (kPa) by RPM. Smaller at low RPM, larger at high RPM. PID activates within this band.',
 	'boost.savePhaseSettings': 'Save Phase Settings',
-	'boost.signals': 'Signal Sources',
+	'boost.signals': 'Engine Signals (shared)',
+	'boost.signalsMovedHint': 'Sources are assigned by Role on the CAN Receive page (the “Role” column), where the signal is defined. Below shows the current assignment. These signals feed both the boost controller and the MAPdot/RPMdot/TPSdot derivatives (which work even with the controller off).',
 	'boost.mapSignal': 'MAP signal',
 	'boost.rpmSignal': 'RPM signal',
 	'boost.tpsSignal': 'TPS signal',
@@ -612,10 +620,10 @@ export default {
 	'help.boost.canBigEndian': 'Byte order for the duty value: Big-endian (MSB first) or Little-endian (LSB first).',
 	'help.boost.canInterval': 'How often (ms) the PID is computed and the duty-cycle CAN message is sent — a single parameter. Lower = smoother control, more bus load.',
 
-	// Boost: Signal Sources
-	'help.boost.mapSignal': 'Which cached parameter provides the actual MAP (manifold absolute pressure) reading.',
-	'help.boost.rpmSignal': 'Which cached parameter provides the RPM value. Used for target table lookup and learn zones.',
-	'help.boost.tpsSignal': 'Which cached parameter provides TPS (throttle position %). Used for target table lookup and learn zones.',
+	// Boost: Engine Signals (shared)
+	'help.boost.mapSignal': 'Which cached parameter provides the actual MAP (manifold absolute pressure) reading. Its derivative MAPdot (kPa/s) is computed from it and is available as a table axis / telemetry even when the controller is off.',
+	'help.boost.rpmSignal': 'Which cached parameter provides the RPM value. Used for target table lookup, learn zones, and the RPMdot (RPM/s) derivative — works even when the controller is off.',
+	'help.boost.tpsSignal': 'Which cached parameter provides TPS (throttle position %). Used for target table lookup, learn zones, and the TPSdot (%/s) derivative — works even when the controller is off.',
 	'help.boost.knockSignal': 'Which parameter provides knock retard (degrees). When above threshold, target pressure is reduced.',
 
 	// Boost: PID
@@ -678,6 +686,7 @@ export default {
 	'help.canRx.startByte': 'Starting byte position (0-7) within the CAN data payload.',
 	'help.canRx.length': 'Number of bytes to read (1, 2, or 4) for this signal.',
 	'help.canRx.dataType': 'Data type: INT8/UINT8 (1 byte), INT16/UINT16 (2 bytes), INT32/UINT32 (4 bytes).',
+	'help.canRx.role': 'Assign a role (MAP/RPM/TPS/knock/CLT) to make this signal the source for the boost controller and the MAPdot/RPMdot/TPSdot derivatives. Bound to the signal, so the source never drifts when you reorder signals. A role can be assigned to only one signal.',
 	'help.canRx.bigEndian': 'Byte order: Big-endian (MSB first, Motorola) or Little-endian (LSB first, Intel).',
 	'help.canRx.multiplier': 'Raw value is multiplied by this. Use for scaling (e.g., 0.1 for 1/10th resolution).',
 	'help.canRx.divider': 'Raw value is divided by this after multiplier. Combined: result = raw × mult / div + offset.',
@@ -771,7 +780,7 @@ export default {
 	// --- Section-level tooltips ---
 
 	// Boost: Sections
-	'help.boost.signalsSection': 'Select which CAN parameters provide MAP, RPM, TPS, and knock data for the boost controller.',
+	'help.boost.signalsSection': 'Read-only: shows which engine signals are assigned to MAP/RPM/TPS/knock/CLT. Assign them by Role on the CAN Receive page. They feed both the boost controller and the MAPdot/RPMdot/TPSdot derivatives (which work even with the controller off).',
 	'help.boost.targetTableSection': '2D lookup table (RPM × TPS) defining target MAP (kPa) at each operating point.',
 	'help.boost.corrTableSection': '1D correction table that adjusts the target MAP based on a single parameter (e.g., IAT, coolant temp).',
 	'help.boost.pidSection': 'PID controller gains. These are base values — zone learning can adjust Kp and Kd per RPM×TPS zone.',

@@ -89,6 +89,7 @@ export interface CanSignalConfig {
 	offset: number;
 	requiresFtoC: boolean;
 	requiresVssProcessing: boolean;
+	role: number;   // SignalRole: 0=нет, 1=MAP, 2=RPM, 3=TPS, 4=Knock, 5=CLT. Источник сигналов буста/производных.
 }
 
 export interface CanMessageConfig {

@@ -52,6 +52,13 @@
 
 	let isConnected = $derived(bleState.status === 'connected');
 
+	// Имя сигнала, назначенного на роль. Источники задаются ролями в CAN-приёме,
+	// прошивка резолвит их в *SignalParam — здесь показываем read-only.
+	function roleSignalLabel(enumVal: number | undefined): string {
+		if (!enumVal || enumVal === 0) return '—';
+		return getParamShortName(enumToPwaName(enumVal));
+	}
+
 	// --- Пресет «Скорость калибровки»: один контрол вместо россыпи rate-настроек обучения. ---
 	// Пишет существующие поля настроек: темпы обучения BIAS/Ki, доля сдвига к авто-Kp/Kd (P6) и окно.
 	// Детекция волн (раскачки) — автоматическая в прошивке (P6), порогов на UI нет.
@@ -907,74 +914,14 @@
 			</button>
 			{#if activeSection === 'signals'}
 				<div class="px-3 pb-3 space-y-2">
-					<div class="grid grid-cols-2 gap-2">
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.mapSignal')}<HelpTip key="help.boost.mapSignal" /></span>
-							<select bind:value={settings.mapSignalParam}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-
-								{#each paramOptions as p}
-
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-
-								{/each}
-
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.rpmSignal')}<HelpTip key="help.boost.rpmSignal" /></span>
-							<select bind:value={settings.rpmSignalParam}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-
-								{#each paramOptions as p}
-
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-
-								{/each}
-
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.tpsSignal')}<HelpTip key="help.boost.tpsSignal" /></span>
-							<select bind:value={settings.tpsSignalParam}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-
-								{#each paramOptions as p}
-
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-
-								{/each}
-
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.knockSignal')}<HelpTip key="help.boost.knockSignal" /></span>
-							<select bind:value={settings.knockSignalParam}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-
-								{#each paramOptions as p}
-
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-
-								{/each}
-
-							</select>
-						</label>
-						<label class="space-y-1">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.cltSignal')}<HelpTip key="help.boost.cltSignal" /></span>
-							<select bind:value={settings.cltSignalParam}
-								class="w-full px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono focus:border-[var(--color-dash-accent)] focus:outline-none" >
-								{#each paramOptions as p}
-									<option value={p.enumVal}>{paramOptionLabel(p.enumVal)}</option>
-								{/each}
-							</select>
-						</label>
+					<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.signalsMovedHint')}</p>
+					<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+						<div class="flex justify-between gap-2"><span class="text-[var(--color-dash-text-dim)] uppercase">{t('boost.mapSignal')}</span><span class="font-mono text-[var(--color-dash-text)] truncate">{roleSignalLabel(settings.mapSignalParam)}</span></div>
+						<div class="flex justify-between gap-2"><span class="text-[var(--color-dash-text-dim)] uppercase">{t('boost.rpmSignal')}</span><span class="font-mono text-[var(--color-dash-text)] truncate">{roleSignalLabel(settings.rpmSignalParam)}</span></div>
+						<div class="flex justify-between gap-2"><span class="text-[var(--color-dash-text-dim)] uppercase">{t('boost.tpsSignal')}</span><span class="font-mono text-[var(--color-dash-text)] truncate">{roleSignalLabel(settings.tpsSignalParam)}</span></div>
+						<div class="flex justify-between gap-2"><span class="text-[var(--color-dash-text-dim)] uppercase">{t('boost.knockSignal')}</span><span class="font-mono text-[var(--color-dash-text)] truncate">{roleSignalLabel(settings.knockSignalParam)}</span></div>
+						<div class="flex justify-between gap-2"><span class="text-[var(--color-dash-text-dim)] uppercase">{t('boost.cltSignal')}</span><span class="font-mono text-[var(--color-dash-text)] truncate">{roleSignalLabel(settings.cltSignalParam)}</span></div>
 					</div>
-					<button onclick={saveSettings} disabled={saving}
-						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-						{saving ? t('common.saving') : t('common.saveToDevice')}
-					</button>
-					{@render restoreBtn(restoreSettings)}
 				</div>
 			{/if}
 		</section>
