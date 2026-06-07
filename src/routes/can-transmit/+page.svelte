@@ -9,7 +9,7 @@
 	import TableEditor from '$lib/components/TableEditor.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, pwaNameToEnum } from '$lib/utils/param-mapping';
-	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
+	import { PARAM_CACHE_SLOT_START, PARAM_CO_BASE, PARAM_CO_MUL_1, PARAM_CO_MUL_2, PARAM_CO_MUL_3 } from '$lib/ble/protocol';
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { co1Config, loadCo1Config, defaultCo1Settings } from '$lib/stores/co1-settings.svelte';
@@ -65,6 +65,14 @@
 		if (enumVal === 0) return undefined; // NONE
 		const param = liveData.params[enumVal];
 		return param?.value;
+	}
+
+	// Результат таблицы, ТРАНСЛИРУЕМЫЙ ИЗ КОНТРОЛЛЕРА (единый источник правды): то, что реально
+	// применяется к CO1. T1→COBase, T2/T3/T4→COmul1/2/3. Показываем над таблицей вместо
+	// браузерного пересчёта — иначе число врёт, если на устройстве лежит другая таблица/мёртвая ось.
+	const TABLE_RESULT_PARAM = [PARAM_CO_BASE, PARAM_CO_MUL_1, PARAM_CO_MUL_2, PARAM_CO_MUL_3];
+	function getFirmwareTableResult(idx: number): number | undefined {
+		return liveData.params[TABLE_RESULT_PARAM[idx]]?.value;
 	}
 
 	function showStatus(msg: string, durationMs = 3000) {
@@ -353,6 +361,7 @@
 							yAxisLabel={table.yAxisParamType ? axisShortLabel(table.yAxisParamType) : undefined}
 							liveCursorX={getLiveValue(table.xAxisParamType)}
 							liveCursorY={table.hasYAxis ? getLiveValue(table.yAxisParamType) : undefined}
+							liveResult={getFirmwareTableResult(idx)}
 							resizable={true}
 							minCols={1}
 							onResize={(r, c) => onResize(idx, r, c)}

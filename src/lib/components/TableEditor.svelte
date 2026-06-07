@@ -15,6 +15,10 @@
 		readOnly?: boolean;
 		liveCursorX?: number;
 		liveCursorY?: number;
+		/** Живой результат таблицы, ТРАНСЛИРУЕМЫЙ ИЗ КОНТРОЛЛЕРА (единый источник правды).
+		 *  Если задан — он и есть «= NNN» над таблицей; браузерная интерполяция показывается
+		 *  лишь как тусклое превью-сверка. undefined → fallback на браузерный расчёт. */
+		liveResult?: number;
 		xAxisLabel?: string;
 		yAxisLabel?: string;
 		colorGradient?: boolean;
@@ -45,6 +49,7 @@
 		readOnly = false,
 		liveCursorX,
 		liveCursorY,
+		liveResult,
 		xAxisLabel,
 		yAxisLabel,
 		colorGradient = false,
@@ -727,12 +732,21 @@
 	{/if}
 
 	<!-- Cursor info bar -->
-	{#if cursorInfo}
+	{#if cursorInfo || liveResult !== undefined}
 		<div class="flex items-center gap-2 mb-1 text-[10px] flex-wrap">
-			<span class="text-[var(--color-dash-warn)] font-mono">
-				{xAxisLabel ?? 'X'}={liveCursorX?.toFixed(0)}{#if liveCursorY !== undefined}&nbsp;&nbsp;{yAxisLabel ?? 'Y'}={liveCursorY?.toFixed(0)}{/if}
-			</span>
-			{#if interpolatedValue !== null}
+			{#if cursorInfo}
+				<span class="text-[var(--color-dash-warn)] font-mono">
+					{xAxisLabel ?? 'X'}={liveCursorX?.toFixed(0)}{#if liveCursorY !== undefined}&nbsp;&nbsp;{yAxisLabel ?? 'Y'}={liveCursorY?.toFixed(0)}{/if}
+				</span>
+			{/if}
+			{#if liveResult !== undefined}
+				<!-- Единый источник правды: значение из контроллера (то, что реально применяется). -->
+				<span class="text-[var(--color-dash-text)] font-mono font-bold">= {liveResult.toFixed(decimals)}</span>
+				{#if interpolatedValue !== null && Math.abs(interpolatedValue - liveResult) > 0.05}
+					<!-- Браузерная интерполяция расходится с контроллером → таблица на устройстве не та. -->
+					<span class="text-[var(--color-dash-text-dim)] font-mono" title="Расчёт в браузере по таблице на экране (для сверки). Расходится с контроллером ⇒ на устройстве лежит другая таблица или ось мертва.">≈ {interpolatedValue.toFixed(decimals)} превью</span>
+				{/if}
+			{:else if interpolatedValue !== null}
 				<span class="text-[var(--color-dash-text)] font-mono font-bold">= {interpolatedValue.toFixed(decimals)}</span>
 			{/if}
 			{#if !readOnly}
