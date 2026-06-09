@@ -48,8 +48,11 @@ function findSlotEnum(match: (label: string) => boolean): number {
 	return -1;
 }
 const isAfrTarget = (l: string) =>
-	(l.includes('afr') || l.includes('lambda') || l.includes('λ')) &&
-	(l.includes('tgt') || l.includes('target') || l.includes('цел') || l.includes('aim') || l.includes('desired'));
+	// Дефолтная короткая подпись MS3 "AFT" (afrtgt1 = Bank 1 AFR target) — в ней нет "afr".
+	// \b — чтобы не ловить "shaft"/"draft"/"after".
+	/\baft\b/.test(l) ||
+	((l.includes('afr') || l.includes('lambda') || l.includes('λ')) &&
+		(l.includes('tgt') || l.includes('target') || l.includes('цел') || l.includes('aim') || l.includes('desired')));
 function resolveKnk(): number {
 	const k = boostSettings.value.knockSignalParam;
 	if (k && k !== 0) return k; // явно выбранный сигнал детонации
