@@ -36,7 +36,10 @@ export async function loadSignalLabels(force = false): Promise<void> {
 		for (const msg of config) {
 			if (!msg.isEnabled || !msg.signals) continue;
 			for (const sig of msg.signals) {
-				if (!sig.isEnabled) continue;
+				// Слот-индекс ДОЛЖЕН совпадать с прошивкой (init_utils): сигнал без имени
+				// слот НЕ занимает. Иначе подписи слотов «съезжают» и оси/резолверы графика
+				// (knk/afr/clt/mat/ign) мапятся на чужой сигнал. Та же логика в buildCacheSlotLabels.
+				if (!sig.isEnabled || !sig.signalName) continue;
 				newLabels[slotIndex] = {
 					label: sig.userLabel || sig.signalName,
 					unit: normalizeTempUnit(sig.userUnit || '', sig.requiresFtoC)
