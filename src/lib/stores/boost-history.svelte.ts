@@ -37,7 +37,14 @@ export interface HistSample {
 	clt: number; // температура ОЖ (cltSignalParam или слот с подписью clt/coolant)
 	mat: number; // температура впускного воздуха (слот с подписью mat/iat/intake)
 	state: number; // BST_ST (55) — regulator phase (NaN if absent)
+	// Снимок ПРОЧИХ enum'ов для произвольных серий графика: расчётные контроллера (ERR/P/I/D/Kp/Kd/…)
+	// + все 40 cache-слотов CAN-приёма. Пишется всегда (см. RAW_EXTRA_ENUMS), NaN если параметр не стримится.
+	extra: Record<number, number>;
 }
+
+// Расчётные параметры контроллера, не попавшие в именованные поля выше (телеметрия PID и пр.).
+// Именованные расчётные (BST_OUT/TGT/BIAS/dRPM/MAPdot/TPSdot/CO*) тут НЕ дублируем.
+const RAW_COMPUTED_ENUMS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 56];
 
 // --- Резолв принятых сигналов по подписи cache-слота (зависит от CAN Receive config) -------
 /** Найти enum cache-слота, чья подпись (в нижнем регистре) удовлетворяет предикату; -1 если нет. */
@@ -57,6 +64,12 @@ function resolveKnk(): number {
 	const k = boostSettings.value.knockSignalParam;
 	if (k && k !== 0) return k; // явно выбранный сигнал детонации
 	return findSlotEnum((l) => l.includes('knock') || l.includes('knk') || l.includes('детон'));
+}
+function resolveAfr(): number {
+	return findSlotEnum((l) => (l.includes('afr') || l.includes('lambda') || l.includes('λ')) && !isAfrTarget(l));
+}
+function resolveAfrTgt(): number {
+	return findSlotEnum(isAfrTarget);
 }
 function resolveIgn(): number {
 	return findSlotEnum((l) => {
@@ -118,11 +131,18 @@ function tick(): void {
 	if (bleState.status !== 'connected') return;
 	const p = liveData.params;
 	const knkEnum = resolveKnk();
-	const afrEnum = findSlotEnum((l) => (l.includes('afr') || l.includes('lambda') || l.includes('λ')) && !isAfrTarget(l));
-	const afrTgtEnum = findSlotEnum(isAfrTarget);
+	const afrEnum = resolveAfr();
+	const afrTgtEnum = resolveAfrTgt();
 	const ignEnum = resolveIgn();
 	const cltEnum = resolveClt();
 	const matEnum = resolveMat();
+	// Снимок прочих enum'ов (расчётные телеметрии + все 40 cache-слотов) для произвольных серий.
+	const extra: Record<number, number> = {};
+	for (const e of RAW_COMPUTED_ENUMS) extra[e] = p[e]?.value ?? NaN;
+	for (let i = 0; i < 40; i++) {
+		const e = PARAM_CACHE_SLOT_START + i;
+		extra[e] = p[e]?.value ?? NaN;
+	}
 	samples.push({
 		t: Date.now() - histState.startedAt,
 		rpm: p[boostSettings.value.rpmSignalParam]?.value ?? NaN,
@@ -145,10 +165,29 @@ function tick(): void {
 		ign: slotValue(p, ignEnum),
 		clt: slotValue(p, cltEnum),
 		mat: slotValue(p, matEnum),
-		state: p[PARAM_BOOST_STATE]?.value ?? NaN
+		state: p[PARAM_BOOST_STATE]?.value ?? NaN,
+		extra
 	});
 	if (samples.length > MAX_SAMPLES) samples.splice(0, DROP_CHUNK);
 	histState.count++;
+}
+
+/** Cache-слоты, уже занятые курируемыми сериями графика (MAP/RPM/TPS по настройке + knk/afr/
+ *  afrTgt/ign/clt/mat по подписи). Чтобы пикер не показывал их повторно в группе «CAN приём».
+ *  Реактивна по signalLabels/boostSettings — читается внутри $derived в графике. */
+export function roleSlotEnums(): Set<number> {
+	const set = new Set<number>();
+	const add = (e: number) => { if (e && e > 0) set.add(e); };
+	add(boostSettings.value.mapSignalParam);
+	add(boostSettings.value.rpmSignalParam);
+	add(boostSettings.value.tpsSignalParam);
+	add(resolveKnk());
+	add(resolveAfr());
+	add(resolveAfrTgt());
+	add(resolveIgn());
+	add(resolveClt());
+	add(resolveMat());
+	return set;
 }
 
 /** Begin a fresh history session (called on each new BLE connection). */
