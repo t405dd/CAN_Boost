@@ -188,6 +188,15 @@
 		if (o && o.min != null && o.max != null && o.min < o.max) return { min: o.min, max: o.max };
 		return null;
 	}
+	/** Действующий по умолчанию диапазон (для placeholder в пикере): курируемая фикс-ось — её min/max;
+	 *  авто-оси (производные) и сырые серии — null (показываем «мин»/«макс»). */
+	function defaultRange(id: string): { min: number; max: number } | null {
+		if (id.startsWith('raw:')) return null;
+		const ser = SERIES.find((s) => s.key === id);
+		if (!ser) return null;
+		const spec = AXES[ser.axis];
+		return spec.kind === 'fixed' ? { min: spec.min, max: spec.max } : null;
+	}
 
 	// Тап по чипу легенды — показать/скрыть линию (зачёркивание).
 	function toggleSeries(id: string) {
@@ -730,13 +739,13 @@
 						</button>
 						<!-- Диапазон оси: оба поля заданы (min<max) → серия на собственной фикс-оси; иначе авто/курируемая. -->
 						<div class="flex items-center gap-1 shrink-0">
-							<input type="number" inputmode="decimal" placeholder={t('chart.axisMin')}
+							<input type="number" inputmode="decimal" placeholder={String(defaultRange(item.id)?.min ?? t('chart.axisMin'))}
 								value={axisOverride[item.id]?.min ?? ''}
 								onchange={(e) => setAxis(item.id, 'min', e.currentTarget.value)}
 								class="w-12 px-1 py-1 rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]
 									text-[var(--color-dash-text)] text-[11px] font-mono text-center focus:outline-none focus:border-[var(--color-dash-accent)]" />
 							<span class="text-[var(--color-dash-text-dim)] text-[10px]">–</span>
-							<input type="number" inputmode="decimal" placeholder={t('chart.axisMax')}
+							<input type="number" inputmode="decimal" placeholder={String(defaultRange(item.id)?.max ?? t('chart.axisMax'))}
 								value={axisOverride[item.id]?.max ?? ''}
 								onchange={(e) => setAxis(item.id, 'max', e.currentTarget.value)}
 								class="w-12 px-1 py-1 rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)]
