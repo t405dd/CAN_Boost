@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_CAN_CONFIG, CHR_OUTPUTS } from '$lib/ble/uuids';
-	import type { PhysOutputConfig } from '$lib/types/config';
+	import { SVC_CAN_CONFIG, CHR_OUTPUTS, CHR_OUT_CHANNELS, SVC_BOOST, CHR_BOOST_SETTINGS } from '$lib/ble/uuids';
+	import type { PhysOutputConfig, OutChannelsConfig, OutChannelInfo } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import { allParamEntries, firmwareNameToPwaName } from '$lib/utils/param-mapping';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 	import { getParamDisplayName, signalLabels } from '$lib/stores/signal-labels.svelte';
+	import { boostSettings, loadBoostSettings } from '$lib/stores/boost-settings.svelte';
+	import { settingsToDevice } from '$lib/utils/boost-pid-scale';
+	import { deviceState } from '$lib/stores/device-state.svelte';
+	import { liveData } from '$lib/stores/live-data.svelte';
 
 	const MAX_OUTPUTS = 2;
 	// Свободные пины под выходы (CAN 3/4, LED 21 заняты; ADC1 лучше беречь под входы)
@@ -86,16 +90,79 @@
 		}
 	}
 
+	// ============================================================================
+	// === Секция «CAN-отправка»: 5 маршрутов — BST_OUT (boost_settings) + OUT1..4
+	// === (out_channels). Прячется целиком при выключенном CAN (standalone).
+	// ============================================================================
+	let canAvailable = $derived(deviceState.canEnabled !== false);
+
+	// --- OUT1..4: редактируемая копия каналов из out_channels ---
+	let outChannels = $state<OutChannelInfo[]>([]);
+	let outChannelsLoaded = $state(false);
+	async function loadOutChannels(silent = false) {
+		const data = await readJsonConfig<OutChannelsConfig>(SVC_CAN_CONFIG, CHR_OUT_CHANNELS);
+		if (data && Array.isArray(data.channels)) {
+			if (!silent || !outChannelsLoaded) outChannels = data.channels.map(c => ({ ...c }));
+			else outChannels.forEach((c, i) => { c.value = data.channels[i]?.value; });   // live-обновление значений
+			outChannelsLoaded = true;
+		}
+	}
+	async function saveOutChannels() {
+		saving = true;
+		try {
+			const clean = outChannels.map(({ value, ...rest }) => rest);
+			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_OUT_CHANNELS, { channels: clean });
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			saving = false;
+		}
+	}
+
+	// --- BST_OUT: CAN-поля из общего стора boost_settings (редактируемая копия 4 полей).
+	// Запись шлёт ВЕСЬ boost_settings (display→device конвертация PID); прошивка при
+	// применении сбрасывает PID-состояние — для редкой смены адреса безвредно. ---
+	let boostCan = $state({ canId: 0x26A, canByteOffset: 0, canBigEndian: true, canSendIntervalMs: 20 });
+	let boostCanIdHex = $state('26A');
+	let lastBoostEpoch = 0;
+	$effect(() => {
+		const e = boostSettings.epoch;
+		if (e !== lastBoostEpoch) {
+			lastBoostEpoch = e;
+			const v = boostSettings.value;
+			boostCan = { canId: v.canId, canByteOffset: v.canByteOffset, canBigEndian: v.canBigEndian, canSendIntervalMs: v.canSendIntervalMs };
+			boostCanIdHex = v.canId.toString(16).toUpperCase();
+		}
+	});
+	async function saveBoostCan() {
+		saving = true;
+		try {
+			boostCan.canId = parseInt(boostCanIdHex, 16) || 0x26A;
+			const full = { ...$state.snapshot(boostSettings.value), ...$state.snapshot(boostCan) };
+			const ok = await writeJsonConfig(SVC_BOOST, CHR_BOOST_SETTINGS, settingsToDevice(full));
+			if (ok) boostSettings.value = full;   // стор = то, что на устройстве
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			saving = false;
+		}
+	}
+
 	let initialLoadDone = $state(false);
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
 			loadOutputs();
-			refreshTimer = setInterval(() => loadOutputs(true), 3000);   // live duty
+			loadOutChannels().catch(() => {});
+			if (!boostSettings.loaded) loadBoostSettings();
+			refreshTimer = setInterval(() => { loadOutputs(true); loadOutChannels(true).catch(() => {}); }, 3000);   // live duty + значения каналов
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
 			loaded = false;
+			outChannelsLoaded = false;
 			if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 		}
 		return () => {
@@ -134,6 +201,9 @@
 		</div>
 
 		<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.hint')}</p>
+
+		<!-- ======================= Секция 1: физические ШИМ-выходы ======================= -->
+		<div class="text-[10px] font-bold text-[var(--color-dash-text)] uppercase tracking-wider pt-1">{t('outputs.pwmSection')}</div>
 
 		{#each outputs as out, idx}
 			{@const live = liveOutputs[idx]}
@@ -215,5 +285,97 @@
 		{/each}
 
 		<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.hwHint')}</p>
+
+		<!-- ======================= Секция 2: CAN-отправка ======================= -->
+		{#if canAvailable}
+			<div class="text-[10px] font-bold text-[var(--color-dash-text)] uppercase tracking-wider pt-2 inline-flex items-center gap-1">{t('outputs.canSection')}<HelpTip key="help.outputs.canSection" /></div>
+			<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.canHint')}</p>
+
+			<!-- BST_OUT (boost) -->
+			<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2 {boostSettings.loaded ? '' : 'opacity-50 pointer-events-none'}">
+				<div class="flex items-center justify-between">
+					<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+						BST_OUT
+						{#if boostSettings.value.enabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+						<span class="text-[var(--color-dash-text-dim)] font-normal">{t('outputs.boostRoute')}</span>
+					</span>
+					{#if liveData.params[3]?.value !== undefined}
+						<span class="text-xs font-mono text-[var(--color-dash-accent)] tabular-nums">{liveData.params[3].value.toFixed(1)}%</span>
+					{/if}
+				</div>
+				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.boostSendHint')}</p>
+				<div class="flex items-center gap-3 flex-wrap">
+					<label class="flex items-center gap-1.5">
+						<span class={labelClass}>{t('canTx.canId')}</span>
+						<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
+						<input type="text" bind:value={boostCanIdHex} maxlength="8" class="{inputClass} w-20 uppercase" />
+					</label>
+					<label class="flex items-center gap-1.5">
+						<span class={labelClass}>{t('canTx.canByteOffset')}</span>
+						<input type="number" min="0" max="6" bind:value={boostCan.canByteOffset} class="{inputClass} w-14 text-center" />
+					</label>
+					<label class="flex items-center gap-1.5 cursor-pointer">
+						<input type="checkbox" bind:checked={boostCan.canBigEndian} class="accent-[var(--color-dash-accent)]" />
+						<span class="text-xs text-[var(--color-dash-text)]">{t('canTx.canBigEndian')}</span>
+					</label>
+					<label class="flex items-center gap-1.5">
+						<span class={labelClass}>{t('canTx.canInterval')}</span>
+						<input type="number" min="10" max="1000" step="10" bind:value={boostCan.canSendIntervalMs} class="{inputClass} w-20 text-center" />
+					</label>
+					<button onclick={saveBoostCan} disabled={saving || !boostSettings.loaded}
+						class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+						{saving ? t('common.saving') : t('common.saveToDevice')}
+					</button>
+				</div>
+			</section>
+
+			<!-- OUT1..4 -->
+			{#each outChannels as ch, i}
+				<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2 {outChannelsLoaded ? '' : 'opacity-50 pointer-events-none'}">
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+							OUT{i + 1}
+							{#if ch.enabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+						</span>
+						{#if ch.value !== undefined}
+							<span class="text-xs font-mono text-[var(--color-dash-accent)] tabular-nums">{ch.value.toFixed(1)}</span>
+						{/if}
+					</div>
+					<div class="flex items-center gap-3 flex-wrap">
+						<label class="flex items-center gap-1.5 cursor-pointer">
+							<input type="checkbox" bind:checked={ch.enabled} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)]">{t('outputs.sendToCan')}</span>
+						</label>
+						<div class="flex items-center gap-3 flex-wrap {ch.enabled ? '' : 'opacity-40 pointer-events-none'}">
+							<label class="flex items-center gap-1.5">
+								<span class={labelClass}>{t('canTx.canId')}</span>
+								<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
+								<input type="text" value={ch.canId.toString(16).toUpperCase()} maxlength="8"
+									onchange={(e) => { const v = parseInt(e.currentTarget.value, 16); if (!isNaN(v)) ch.canId = v; }}
+									class="{inputClass} w-20 uppercase" />
+							</label>
+							<label class="flex items-center gap-1.5">
+								<span class={labelClass}>{t('canTx.canByteOffset')}</span>
+								<input type="number" min="0" max="6" bind:value={ch.canByteOffset} class="{inputClass} w-14 text-center" />
+							</label>
+							<label class="flex items-center gap-1.5 cursor-pointer">
+								<input type="checkbox" bind:checked={ch.canBigEndian} class="accent-[var(--color-dash-accent)]" />
+								<span class="text-xs text-[var(--color-dash-text)]">{t('canTx.canBigEndian')}</span>
+							</label>
+							<label class="flex items-center gap-1.5">
+								<span class={labelClass}>{t('canTx.canInterval')}</span>
+								<input type="number" min="10" max="1000" step="10" bind:value={ch.canSendIntervalMs} class="{inputClass} w-20 text-center" />
+							</label>
+						</div>
+					</div>
+				</section>
+			{/each}
+			{#if outChannels.length > 0}
+				<button onclick={saveOutChannels} disabled={saving || !outChannelsLoaded}
+					class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+					{saving ? t('common.saving') : t('outputs.saveChannels')}
+				</button>
+			{/if}
+		{/if}
 	{/if}
 </div>

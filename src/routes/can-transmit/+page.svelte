@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES, CHR_CAN_OUT_SETTINGS, CHR_OUT_CHANNELS } from '$lib/ble/uuids';
-	import type { CanOutTable, FirmwareCanOutTable, Co1Settings, OutChannelsConfig } from '$lib/types/config';
+	import { SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES, CHR_OUT_CHANNELS } from '$lib/ble/uuids';
+	import type { CanOutTable, FirmwareCanOutTable, OutChannelsConfig } from '$lib/types/config';
 	import { firmwareToCanOutTable, canOutTableToFirmware } from '$lib/utils/can-out-adapter';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -12,12 +12,11 @@
 	import { PARAM_CACHE_SLOT_START, PARAM_CO_BASE, PARAM_CO_MUL_1, PARAM_CO_MUL_2, PARAM_CO_MUL_3 } from '$lib/ble/protocol';
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
-	import { co1Config, loadCo1Config, defaultCo1Settings } from '$lib/stores/co1-settings.svelte';
-	import { deviceState } from '$lib/stores/device-state.svelte';
+	import { base } from '$app/paths';
 
-	// CAN выключен (standalone) → секция CAN-отправки канала не имеет смысла, прячем.
-	// Таблицы остаются: значения OUT-каналов питают физические ШИМ-выходы и без CAN.
-	let canAvailable = $derived(deviceState.canEnabled !== false);
+	// Страница ЧИСТОГО РАСЧЁТА: только таблицы каналов OUT1..4. Доставка значений
+	// (CAN-адреса каналов и ШИМ-пины) — на странице «Выходы» (полное разделение
+	// «вычисление ↔ доставка», как роли на входе).
 
 	const TABLE_LABELS_KEYS = ['canTx.t1base', 'canTx.t2mul1', 'canTx.t3mul2', 'canTx.t4mul3'] as const;
 	const TABLE_IDS = ['T1_Base', 'T2_Multiplier1', 'T3_Multiplier2', 'T4_Multiplier3'];
@@ -37,12 +36,6 @@
 	let saving = $state(false);
 	let statusMsg = $state('');
 	let activeSection = $state<string | null>(null);   // аккордеон: открыта одна секция за раз (как на бусте)
-
-	// --- CO1 Bus Settings (источник истины — общий стор co1Config, грузится в hydrate() на коннекте) ---
-	let co1Settings = $state<Co1Settings>(defaultCo1Settings());   // редактируемая копия (синхронит $effect ниже)
-	// Прочитаны ли настройки CO1 с устройства — пока false, не показываем дефолты (0x269 и т.п.) как реальные.
-	let co1Loaded = $derived(co1Config.loaded);
-	let co1CanIdHex = $state('269');
 
 	let isConnected = $derived(bleState.status === 'connected');
 
@@ -69,9 +62,8 @@
 		try {
 			await writeJsonConfig(SVC_CAN_CONFIG, CHR_OUT_CHANNELS, { edit: n });
 			editChannel = n;
-			// Канал переключён — таблицы и настройки теперь отдаются для него
+			// Канал переключён — таблицы теперь отдаются для него
 			await fetchTables();
-			await loadCo1Config();
 			await loadOutChannels();
 		} catch (e) {
 			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
@@ -164,20 +156,6 @@
 		}
 	}
 
-	async function saveCo1Settings() {
-		saving = true;
-		try {
-			co1Settings.canId = parseInt(co1CanIdHex, 16) || 0x269;
-			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_CAN_OUT_SETTINGS, co1Settings);
-			if (ok) co1Config.value = $state.snapshot(co1Settings);   // стор = то, что на устройстве
-			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
-		} catch (e) {
-			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
-		} finally {
-			saving = false;
-		}
-	}
-
 	// --- «Восстановить из Flash»: перечитать секцию с устройства, затерев несохранённые правки. ---
 	async function restoreFromFlash(loadFn: () => Promise<unknown>) {
 		loading = true;
@@ -191,7 +169,6 @@
 			loading = false;
 		}
 	}
-	const restoreCo1 = () => restoreFromFlash(loadCo1Config);
 	const restoreTables = () => restoreFromFlash(fetchTables);
 
 	// Изменение размерности через встроенные кнопки +/- TableEditor (как на странице буста).
@@ -223,10 +200,7 @@
 	$effect(() => {
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
-			// Настройки CO1 обычно грузит централизованный hydrate() (см. +layout); здесь фолбэк
-			// (если стор ещё не загружен). Плюс таблицы CAN-выхода (большой конфиг, нужен лишь тут)
-			// и сводка OUT-каналов (селектор).
-			if (!co1Config.loaded) loadCo1Config();
+			// Таблицы канала (большой chunked-конфиг, нужен лишь тут) + сводка OUT-каналов (селектор).
 			loadOutChannels().catch(() => {});
 			loading = true;
 			fetchTables().catch((e) => showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message)).finally(() => { loading = false; });
@@ -235,18 +209,6 @@
 			initialLoadDone = false;
 			tablesLoaded = false;
 			outChannels = null;
-		}
-	});
-
-	// Синхронизация редактируемой копии CO1 из общего стора (грузится в hydrate()). Клонируем при
-	// каждом успешном чтении (epoch++); также обновляем hex-поле CAN ID.
-	let lastCo1Epoch = 0;
-	$effect(() => {
-		const e = co1Config.epoch;
-		if (e !== lastCo1Epoch) {
-			lastCo1Epoch = e;
-			co1Settings = $state.snapshot(co1Config.value) as Co1Settings;
-			co1CanIdHex = co1Config.value.canId.toString(16).toUpperCase();
 		}
 	});
 </script>
@@ -298,78 +260,11 @@
 			{/if}
 		</div>
 
-		<!-- Настройки CAN-отправки канала (аккордеон). При выключенном CAN (standalone) скрыто. -->
-		{#if canAvailable}
-		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
-			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('co1')}>
-				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
-					{t('canTx.co1Settings')}<HelpTip key="help.canTx.co1Settings" />
-					{#if !co1Loaded}
-						<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin" title={t('common.readingDevice')}></span>
-					{:else if co1Settings.enabled}
-						<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>
-					{/if}
-				</span>
-				<span class="text-xs text-[var(--color-dash-text-dim)]">{activeSection === 'co1' ? '−' : '+'}</span>
-			</button>
-			{#if activeSection === 'co1'}
-				<div class="px-3 pb-3 space-y-3">
-					{#if !co1Loaded}
-						<div class="flex items-center gap-2 text-[11px] text-[var(--color-dash-text-dim)] py-2">
-							<span class="w-3 h-3 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
-							{t('common.readingDevice')}
-						</div>
-					{:else}
-					<div class="flex items-center justify-between">
-						<label class="flex items-center gap-2 cursor-pointer">
-							<input type="checkbox" bind:checked={co1Settings.enabled} class="accent-[var(--color-dash-accent)]" />
-							<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.co1Enabled')}<HelpTip key="help.canTx.co1Enabled" /></span>
-						</label>
-						<button onclick={saveCo1Settings} disabled={saving}
-							class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
-							{saving ? t('common.saving') : t('common.saveToDevice')}
-						</button>
-						{@render restoreBtn(restoreCo1)}
-					</div>
+		<!-- Доставка канала (CAN-адрес / ШИМ-пин) настраивается на странице «Выходы» -->
+		<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('canTx.deliveryMoved')}
+			<a href="{base}/outputs" class="text-[var(--color-dash-accent)] underline">{t('nav.outputs')}</a></p>
 
-					<div class="flex items-center gap-3 flex-wrap {co1Settings.enabled ? '' : 'opacity-40 pointer-events-none'}">
-						<!-- CAN ID -->
-						<div class="flex items-center gap-1.5">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canId')}<HelpTip key="help.canTx.canId" /></span>
-							<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) - 1; if (v >= 0) co1CanIdHex = v.toString(16).toUpperCase(); }}
-								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
-							<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
-							<input type="text" bind:value={co1CanIdHex} maxlength="8"
-								class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono uppercase focus:border-[var(--color-dash-accent)] focus:outline-none" />
-							<button onclick={() => { const v = (parseInt(co1CanIdHex, 16) || 0) + 1; if (v <= 0x1FFFFFFF) co1CanIdHex = v.toString(16).toUpperCase(); }}
-								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {parseInt(co1CanIdHex, 16) || 0} dec</span>
-						</div>
-						<!-- Byte offset -->
-						<label class="flex items-center gap-1.5">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canByteOffset')}<HelpTip key="help.canTx.canByteOffset" /></span>
-							<input type="number" min="0" max="6" bind:value={co1Settings.canByteOffset}
-								class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-						<!-- Big-endian -->
-						<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
-							<input type="checkbox" bind:checked={co1Settings.canBigEndian} class="accent-[var(--color-dash-accent)]" />
-							<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('canTx.canBigEndian')}<HelpTip key="help.canTx.canBigEndian" /></span>
-						</label>
-						<!-- Send interval -->
-						<label class="flex items-center gap-1.5">
-							<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('canTx.canInterval')}<HelpTip key="help.canTx.canInterval" /></span>
-							<input type="number" min="10" max="1000" step="10" bind:value={co1Settings.canSendIntervalMs}
-								class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-						</label>
-					</div>
-					{/if}
-				</div>
-			{/if}
-		</section>
-		{/if}
-
-		<!-- Таблицы CAN выхода: по аккордеон-секции на таблицу (T1…T4). -->
+		<!-- Таблицы канала: по аккордеон-секции на таблицу (T1…T4). -->
 		{#each tables as table, idx}
 			<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 				<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('t' + idx)}>

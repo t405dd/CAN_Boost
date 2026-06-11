@@ -6,7 +6,7 @@ export default {
 	'nav.canTransmit': 'Output Tables',
 	'nav.roles': 'Signal Roles',
 	'nav.localInputs': 'Local Inputs',
-	'nav.outputs': 'Physical Outputs',
+	'nav.outputs': 'Outputs',
 	'nav.userParams': 'User Params',
 	'nav.raceTimer': 'Race Timer',
 	'nav.logging': 'Logging',
@@ -193,8 +193,8 @@ export default {
 	'canRx.savedOk': 'Saved successfully',
 	'canRx.saveFailed': 'Save failed',
 
-	// CAN Transmit page
-	'canTx.title': 'CAN Transmit',
+	// Output Tables page (computation only; delivery lives on Outputs)
+	'canTx.title': 'Output Tables',
 	'canTx.t1base': 'T1 Base',
 	'canTx.t2mul1': 'Multiplier 1',
 	'canTx.t3mul2': 'Multiplier 2',
@@ -209,8 +209,9 @@ export default {
 	'canTx.canId': 'CAN ID (hex)',
 	'canTx.canByteOffset': 'Byte offset',
 	'canTx.canBigEndian': 'Big-endian',
-	'canTx.canInterval': 'Calc & send interval (ms)',
+	'canTx.canInterval': 'Send interval (ms)',
 	'canTx.channel': 'Channel',
+	'canTx.deliveryMoved': 'Channel delivery (CAN address / PWM pin) is configured on the Outputs page:',
 
 	// Signal Roles page
 	'roles.title': 'Signal Roles',
@@ -248,10 +249,17 @@ export default {
 	'localIn.timeout': 'Timeout (ms)',
 	'localIn.pulseHint': 'value = frequency (Hz) × multiplier. RPM: 60 / sparks per rev (wasted spark 4-cyl → 30). VSS km/h: 3600 / pulses per km. No pulses past timeout → 0.',
 
-	// Physical Outputs page
-	'outputs.title': 'Physical Outputs',
+	// Outputs page (delivery: PWM pins + CAN transmit)
+	'outputs.title': 'Outputs',
 	'outputs.output': 'PWM Output',
-	'outputs.hint': 'Each output renders a computed value (BST_OUT, OUT1..4 or any signal) onto a GPIO pin as PWM for an external MOSFET driver. The value itself is computed by the firmware — the output only maps it to duty.',
+	'outputs.hint': 'All delivery in one place: computed values (boost duty BST_OUT, table channels OUT1..4, any signal) go to physical PWM pins and/or onto the CAN bus. The values themselves are computed on the Boost and Output Tables pages.',
+	'outputs.pwmSection': 'Physical PWM outputs',
+	'outputs.canSection': 'CAN transmit',
+	'outputs.canHint': 'Each route: value → CAN frame (uint16 ×10) with its own ID, byte offset, byte order and interval.',
+	'outputs.boostRoute': 'boost controller duty',
+	'outputs.boostSendHint': 'Sent while the boost controller is enabled (Boost page). Saving here rewrites boost settings and resets the PID state.',
+	'outputs.sendToCan': 'Send to CAN',
+	'outputs.saveChannels': 'Save OUT1..4 to device',
 	'outputs.source': 'Source',
 	'outputs.freq': 'PWM freq (Hz)',
 	'outputs.mapping': 'Value → duty mapping',
@@ -543,6 +551,7 @@ export default {
 	'boost.calibrationShared': 'Learning (BIAS, Ki/Kp/Kd) is shared across all maps.',
 	'boost.calLiveUpdate': 'Cells highlight by how much each coefficient changed since calibration started — green = up, red = down (denser = bigger change). Colours stay so you can judge the change, then clear when you Save or Discard.',
 	'boost.enable': 'Enable Boost Controller',
+	'boost.deliveryMoved': 'BST_OUT delivery (CAN address / PWM pin) is configured on the Outputs page:',
 	'boost.actuator': 'Actuator Type',
 	'boost.membrane': 'Membrane (MAC solenoid)',
 	'boost.vacuum': 'Vacuum actuator',
@@ -812,6 +821,7 @@ export default {
 	'help.outputs.dutyClamp': 'Physical duty limits applied AFTER inversion — e.g. keep a solenoid off its hard stops.',
 	'help.outputs.safeDuty': 'Duty applied at boot (before the controller runs) and whenever the source is invalid or stale. 0% = de-energized solenoid = spring pressure (fail-safe).',
 	'help.outputs.staleMs': 'Source older than this (ms) → safe duty. Computed values (BST_OUT/OUT1..4) are always fresh; this guards signal sources.',
+	'help.outputs.canSection': 'All CAN transmit routes in one place: boost duty (BST_OUT) and table channels OUT1..4. Values are computed on the Boost / Output Tables pages — here you only choose where they go on the bus.',
 
 	// System: CAN toggle
 	'help.system.canToggle': 'Master CAN switch. Off = simplified standalone device: no TWAI driver, no CAN tasks; boost runs from local inputs. Stored in NVS, applied via restart. CAN pages are hidden while off.',

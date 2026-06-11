@@ -44,7 +44,7 @@ export async function hydrateOnConnect(): Promise<void> {
 	await step('device_state', () => loadWithRetry(loadDeviceState));     // canEnabled → видимость CAN-вкладок
 	await step('boost_maps', ensureBoostMapsLoaded);        // мелкое прямое чтение — селектор карт во всех страницах
 	await step('boost_settings', () => loadWithRetry(loadBoostSettings)); // Enable/актуатор/сигналы/PID (/boost)
-	await step('co1_settings', () => loadWithRetry(loadCo1Config));       // настройки CO1 (/can-transmit)
+	await step('co1_settings', () => loadWithRetry(loadCo1Config));       // CAN-настройки OUT1 (флаг enabled для CanOutBar в шапке; edit-канал на старте всегда 0)
 	await step('signal_labels', () => loadSignalLabels());  // большой chunked can_receive + local_inputs — ПОСЛЕДНИМ
 	console.log('[hydrate] чтение конфигов завершено');
 }

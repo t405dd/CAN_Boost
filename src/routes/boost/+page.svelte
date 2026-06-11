@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
+	import { base } from '$app/paths';
 	import { SVC_BOOST, CHR_BOOST_SETTINGS, CHR_BOOST_TARGET, CHR_BOOST_CORR, CHR_BOOST_LEARN, CHR_BOOST_BIAS, CHR_BOOST_DELTA_MAP,
 		SVC_SYSTEM, CHR_COMMAND, CMD_BOOST_SAVE_NOW, CMD_BOOST_COMMIT_BASELINE, CMD_BOOST_REVERT_BASELINE } from '$lib/ble/uuids';
 	import { onLearnDelta, type LearnDelta } from '$lib/stores/boost-learn-stream.svelte';
@@ -815,41 +816,10 @@
 						{/each}
 					</select>
 				</label>
-
-				<!-- CAN ID -->
-				<div class="flex items-center gap-1.5">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.canId')}<HelpTip key="help.boost.canId" /></span>
-					<button onclick={() => { if (settings.canId > 0) settings.canId--; }}
-						class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
-					<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
-					<input type="text" value={settings.canId.toString(16).toUpperCase()} maxlength="8"
-						onchange={(e) => { const v = parseInt(e.currentTarget.value, 16); if (!isNaN(v)) settings.canId = v; }}
-						class="w-20 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono uppercase focus:border-[var(--color-dash-accent)] focus:outline-none" />
-					<button onclick={() => { if (settings.canId < 0x1FFFFFFF) settings.canId++; }}
-						class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {settings.canId} dec</span>
-				</div>
-
-				<!-- Byte offset -->
-				<label class="flex items-center gap-1.5">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.canByteOffset')}<HelpTip key="help.boost.canByteOffset" /></span>
-					<input type="number" min="0" max="6" bind:value={settings.canByteOffset}
-						class="w-14 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-				</label>
-
-				<!-- Big-endian -->
-				<label class="flex items-center gap-1.5 cursor-pointer pb-0.5">
-					<input type="checkbox" bind:checked={settings.canBigEndian} class="accent-[var(--color-dash-accent)]" />
-					<span class="text-xs text-[var(--color-dash-text)] inline-flex items-center gap-0.5">{t('boost.canBigEndian')}<HelpTip key="help.boost.canBigEndian" /></span>
-				</label>
-
-				<!-- Send interval -->
-				<label class="flex items-center gap-1.5">
-					<span class="text-[10px] text-[var(--color-dash-text-dim)] uppercase inline-flex items-center gap-0.5">{t('boost.canInterval')}<HelpTip key="help.boost.canInterval" /></span>
-					<input type="number" min="10" max="1000" bind:value={settings.canSendIntervalMs}
-						class="w-16 px-2 py-1 text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text)] font-mono text-center focus:border-[var(--color-dash-accent)] focus:outline-none" />
-				</label>
 			</div>
+			<!-- Доставка BST_OUT (CAN-адрес / ШИМ-пин) настраивается на странице «Выходы» -->
+			<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('boost.deliveryMoved')}
+				<a href="{base}/outputs" class="text-[var(--color-dash-accent)] underline">{t('nav.outputs')}</a></p>
 				{/if}
 				</div>
 			{/if}
