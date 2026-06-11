@@ -451,7 +451,7 @@ export async function shareLog(): Promise<'shared' | 'downloaded' | 'empty'> {
 	const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
 	try {
 		if (nav.canShare && nav.canShare({ files: [file] })) {
-			await nav.share({ files: [file], title: 'MS3 CAN BC log' });
+			await nav.share({ files: [file], title: 'BoostPilot log' });
 			return 'shared';
 		}
 	} catch (e) {

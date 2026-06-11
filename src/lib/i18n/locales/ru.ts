@@ -21,7 +21,7 @@ export default {
 	'ble.disconnected': 'ОТКЛ',
 	'ble.notSupported': 'Web Bluetooth не поддерживается',
 	'ble.notSupportedHint': 'Используйте Chrome или Edge на Android, Windows, macOS или ChromeOS.',
-	'ble.connectPrompt': 'Подключитесь к MS3 CAN BC через Bluetooth',
+	'ble.connectPrompt': 'Подключитесь к BoostPilot через Bluetooth',
 	'ble.connect': 'Подключить',
 	'ble.connectingBtn': 'Подключение...',
 	'ble.reconnectingBtn': 'Переподключение...',
@@ -524,7 +524,7 @@ export default {
 	'flash.description': 'Прошивка через USB-кабель с использованием Web Serial. BLE-подключение не требуется.',
 	'flash.notSupported': 'Web Serial не поддерживается в этом браузере. Используйте Chrome или Edge на ПК.',
 	'flash.connectUsb': 'Подключите устройство через USB-кабель, затем нажмите кнопку ниже.',
-	'flash.flashButton': 'Прошить MS3 CAN BC',
+	'flash.flashButton': 'Прошить BoostPilot',
 	'flash.hint': 'Поместите файлы прошивки (bootloader.bin, partitions.bin, firmware.bin, littlefs.bin) в папку firmware/.',
 
 	// Страница Boost Controller

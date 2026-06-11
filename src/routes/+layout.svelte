@@ -129,7 +129,7 @@
 		</button>
 
 		<div class="flex flex-col items-center leading-none">
-			<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">MS3 CAN BC</span>
+			<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">BOOSTPILOT</span>
 			<span class="text-[9px] text-[var(--color-dash-text-dim)] tracking-wide mt-0.5" title={t('pwa.buildVersion')}>v{version}</span>
 		</div>
 

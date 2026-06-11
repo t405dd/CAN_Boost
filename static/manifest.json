@@ -1,7 +1,7 @@
 {
-	"name": "MS3 CAN BC",
-	"short_name": "MS3 CAN BC",
-	"description": "Standalone CAN boost controller configuration via Bluetooth",
+	"name": "BoostPilot",
+	"short_name": "BoostPilot",
+	"description": "Standalone boost controller with local I/O and optional CAN — configuration via Bluetooth",
 	"id": ".",
 	"start_url": ".",
 	"scope": ".",

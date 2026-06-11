@@ -1,7 +1,7 @@
-// Web Bluetooth connection manager for MS3 CAN BC.
+// Web Bluetooth connection manager for BoostPilot.
 // Handles connect, disconnect, auto-reconnect, service/characteristic caching.
 
-import { ALL_SERVICE_UUIDS, BLE_DEVICE_NAME_PREFIX, SVC_LIVE_DATA, SVC_SYSTEM, CHR_ENGINE_DATA, CHR_CURRENT_TIME, CHR_COMMAND } from './uuids';
+import { ALL_SERVICE_UUIDS, BLE_DEVICE_NAME_PREFIX, BLE_DEVICE_NAME_PREFIX_LEGACY, SVC_LIVE_DATA, SVC_SYSTEM, CHR_ENGINE_DATA, CHR_CURRENT_TIME, CHR_COMMAND } from './uuids';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -78,11 +78,13 @@ function setStatus(step: string, detail?: string) {
 	statusMsgCallback?.(step, detail);
 }
 
-/** Request BLE device and connect (filtered by name) */
+/** Request BLE device and connect (filtered by name).
+ *  Два префикса: новый BoostPilot + легаси CAN_BC (прошивки до ребрендинга). */
 export async function connect(): Promise<boolean> {
 	return connectWithOptions({
 		filters: [
 			{ namePrefix: BLE_DEVICE_NAME_PREFIX },
+			{ namePrefix: BLE_DEVICE_NAME_PREFIX_LEGACY },
 			{ services: [SVC_LIVE_DATA] }
 		],
 		optionalServices: ALL_SERVICE_UUIDS

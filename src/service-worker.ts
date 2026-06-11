@@ -3,7 +3,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-// Service worker MS3 CAN BC PWA — офлайн + контролируемое обновление.
+// Service worker BoostPilot PWA — офлайн + контролируемое обновление.
 //
 // Поведение:
 //   • Установка → precache всего приложения (JS/CSS) + статики + оболочки SPA.

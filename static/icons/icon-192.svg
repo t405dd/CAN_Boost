@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
   <rect width="192" height="192" rx="24" fill="#0a0a0a"/>
   <rect x="8" y="8" width="176" height="176" rx="20" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.3"/>
-  <text x="96" y="84" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="40" fill="#00d4ff">MS3</text>
-  <text x="96" y="128" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="26" fill="#ffffff" opacity="0.7">CAN BC</text>
+  <!-- speed-lines: поток наддува -->
+  <g stroke="#00d4ff" stroke-width="7" stroke-linecap="round">
+    <line x1="28" y1="66"  x2="60" y2="66"  opacity="0.35"/>
+    <line x1="20" y1="96"  x2="60" y2="96"  opacity="0.55"/>
+    <line x1="28" y1="126" x2="60" y2="126" opacity="0.35"/>
+  </g>
+  <!-- монограмма B (нарисована path'ом — без зависимости от шрифтов) -->
+  <path d="M 80 46 L 80 146 L 124 146 C 144 146 156 134 156 118 C 156 106 149 98 138 94
+           C 147 90 152 82 152 72 C 152 56 140 46 122 46 Z
+           M 96 62 L 120 62 C 130 62 136 67 136 75 C 136 83 130 88 120 88 L 96 88 Z
+           M 96 104 L 122 104 C 133 104 140 109 140 118 C 140 127 133 132 122 132 L 96 132 Z"
+        fill="#00d4ff" fill-rule="evenodd"/>
 </svg>

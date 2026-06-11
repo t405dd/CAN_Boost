@@ -58,7 +58,9 @@ export const USER_PARAM_BLE_OFFSET = 200;
 
 // BLE device name prefix for filtering (suffix is last 4 hex of MAC).
 // Must match BLE_DEVICE_NAME_PREFIX in firmware/can_boost/constants.h
-export const BLE_DEVICE_NAME_PREFIX = 'CAN_BC';
+export const BLE_DEVICE_NAME_PREFIX = 'BoostPilot';
+// Прошивки до ребрендинга (2026-06-11) светятся старым именем — ищем и их.
+export const BLE_DEVICE_NAME_PREFIX_LEGACY = 'CAN_BC';
 
 // System command bytes (CHR_COMMAND). Boost learning commands are CAN_Boost-specific.
 // P7 always-on adaptive: обучение идёт всегда (нет старт/стоп-ритуала).
