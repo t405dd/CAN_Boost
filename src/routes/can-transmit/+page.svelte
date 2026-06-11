@@ -78,14 +78,17 @@
 		enumVal >= PARAM_CACHE_SLOT_START && enumVal < PARAM_CACHE_SLOT_START + 40;
 	// Опции селектов осей: системные параметры (вкл. RPMdot/MAPdot/TPSdot) + ТОЛЬКО замапленные
 	// cache-слоты (с подписью), чтобы не показывать пустые cache0…cache39. Значение — pwaName.
+	// NONE (дублирует пункт «—») и TIME (бессмыслен как ось) отфильтрованы.
 	let paramOptions = $derived(
 		allParamEntries().filter(p =>
-			!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
+			p.enumVal > 1 &&
+			(!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
 		)
 	);
-	// Понятные имена производных (оси): pwa-имена → дружелюбные RPMdot/MAPdot/TPSdot.
+	// Понятные имена (оси): pwa-имена → дружелюбные RPMdot/MAPdot/TPSdot и семейство OUT.
 	const AXIS_FRIENDLY_PWA: Record<string, string> = {
-		boost_drpm: 'RPMdot', map_dot: 'MAPdot', tps_dot: 'TPSdot'
+		boost_drpm: 'RPMdot', map_dot: 'MAPdot', tps_dot: 'TPSdot',
+		co1: 'OUT1', out2: 'OUT2', out3: 'OUT3', out4: 'OUT4'
 	};
 	const axisOptionLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamDisplayName(pwaName);
 	const axisShortLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamShortName(pwaName);

@@ -5,11 +5,17 @@
 // --- System parameters (enum 0-14) ---
 // ДОЛЖНЫ совпадать с firmware/can_boost/constants.h (enum DisplayParamType)
 // и global_vars.cpp (allParameters[].name). Без LPS/FPS/ACCEL (headless CAN_Boost).
+// ПОРЯДОК массива = порядок пунктов в дропдаунах (enum хранится в значениях, поэтому
+// перестановка безопасна). Семейство OUT1..4 держим вместе: OUT1 = исторический 'CO1'
+// (enum 2), OUT2..4 — поздние добавки (enum 64..66).
 const SYSTEM_PARAMS: [string, string, number][] = [
 	// [firmwareName, pwaName, enumValue]
 	['NONE', 'none', 0],
 	['TIME', 'time', 1],
 	['CO1', 'co1', 2],
+	['OUT2', 'out2', 64],
+	['OUT3', 'out3', 65],
+	['OUT4', 'out4', 66],
 	['BST_OUT', 'boost_output', 3],
 	['BST_TGT', 'boost_target', 4],
 	['BST_ERR', 'boost_error', 5],
@@ -31,10 +37,6 @@ const SYSTEM_PARAMS: [string, string, number][] = [
 	['COmul2', 'co_mul_2', 61],
 	['COmul3', 'co_mul_3', 62],
 	['COBase', 'co_base', 63],
-	// Вычисляемые каналы OUT2..4 (enum 64..66). OUT1 = исторический 'CO1' (enum 2) выше.
-	['OUT2', 'out2', 64],
-	['OUT3', 'out3', 65],
-	['OUT4', 'out4', 66],
 ];
 
 // --- Cache slots (enum 15-54) ---

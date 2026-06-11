@@ -94,7 +94,11 @@ if (typeof window !== 'undefined') {
 	});
 }
 
-/** Get a sorted array of all current parameter values */
+/** Get a sorted array of all current parameter values.
+ *  Порядок — по enum, но семейство OUT держим вместе: OUT2..4 (поздние enum 64..66)
+ *  встают сразу за OUT1 (исторический enum 2). Влияет на live-список и колонки лога. */
+const SORT_TWEAK: Record<number, number> = { 64: 2.1, 65: 2.2, 66: 2.3 };
+const sortKey = (p: ParamValue) => SORT_TWEAK[p.paramType] ?? p.paramType;
 export function getParamList(): ParamValue[] {
-	return Object.values(liveData.params).sort((a, b) => a.paramType - b.paramType);
+	return Object.values(liveData.params).sort((a, b) => sortKey(a) - sortKey(b));
 }

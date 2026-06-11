@@ -84,7 +84,8 @@
 	const AXIS_FRIENDLY: Record<number, string> = {
 		14: 'RPMdot', // BST_dRPM
 		58: 'MAPdot', // PARAM_MAP_DOT
-		59: 'TPSdot'  // PARAM_TPS_DOT
+		59: 'TPSdot', // PARAM_TPS_DOT
+		2:  'OUT1'    // PARAM_CO1 — firmware-имя 'CO1' историческое, в UI семейство OUT1..4
 	};
 	// Get short param name from enum value (for axis labels)
 	function enumParamShortName(enumVal: number): string {
@@ -106,9 +107,11 @@
 	}
 	// Опции дропдаунов: системные (вкл. производные MAPdot/TPSdot) + ТОЛЬКО замапленные
 	// cache-слоты (с подписью), чтобы не показывать пустые cache0…cache39.
+	// NONE (0) оставляем — это «ось не выбрана»; TIME (1) как ось бессмыслен, прячем.
 	let paramOptions = $derived(
 		allParamEntries().filter(p =>
-			!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined
+			p.enumVal !== 1 &&
+			(!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
 		)
 	);
 

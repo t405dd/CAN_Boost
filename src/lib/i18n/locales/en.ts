@@ -378,7 +378,7 @@ export default {
 	'chart.grpSignals': 'Signals',
 	'chart.grpCo': 'CO correction',
 	'chart.grpTemp': 'Temperatures',
-	'chart.grpCanRx': 'CAN receive (signals)',
+	'chart.grpCanRx': 'Received signals (CAN + local)',
 	'chart.grpCtrl': 'Controller (computed)',
 
 	// Client-side data logger

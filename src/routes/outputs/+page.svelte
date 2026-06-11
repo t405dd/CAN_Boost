@@ -46,7 +46,8 @@
 		enumVal >= PARAM_CACHE_SLOT_START && enumVal < PARAM_CACHE_SLOT_START + 40;
 	let srcOptions = $derived(
 		allParamEntries().filter(p =>
-			p.enumVal !== 0 && (!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
+			p.enumVal > 1 &&   // без NONE и TIME
+			(!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
 		)
 	);
 	const srcLabel = (firmwareName: string) => {

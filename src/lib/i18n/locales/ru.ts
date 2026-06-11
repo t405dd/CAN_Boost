@@ -378,7 +378,7 @@ export default {
 	'chart.grpSignals': 'Сигналы',
 	'chart.grpCo': 'Коррекция CO',
 	'chart.grpTemp': 'Температуры',
-	'chart.grpCanRx': 'CAN приём (сигналы)',
+	'chart.grpCanRx': 'Принятые сигналы (CAN + локальные)',
 	'chart.grpCtrl': 'Контроллер (расчётные)',
 
 	// Клиентский логгер данных

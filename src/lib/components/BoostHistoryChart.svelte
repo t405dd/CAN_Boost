@@ -50,7 +50,8 @@
 	// ось — авто (или override-диапазон из пикера). id = `raw:<enum>` (живёт рядом с курируемыми ключами).
 	interface RawSeries { id: string; enum: number; label: string; color: string; group: 'canrx' | 'ctrl'; }
 	// Расчётные enum'ы контроллера, не покрытые курируемыми сериями (совпадает с RAW_COMPUTED_ENUMS в истории).
-	const RAW_COMPUTED_ENUMS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 56];
+	// 64-66 = вычисляемые каналы OUT2..4 (OUT1 = курируемая серия 'co1').
+	const RAW_COMPUTED_ENUMS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 56, 64, 65, 66];
 	const RAW_PALETTE = [
 		'#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#a855f7', '#14b8a6',
 		'#eab308', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#8b5cf6', '#d946ef', '#0ea5e9'
@@ -100,7 +101,7 @@
 		{ key: 'target', label: 'TGT',    color: '#ffd400', axis: 'kpa', group: 'boost' },
 		{ key: 'boost',  label: 'BOOST',  color: '#00ff88', axis: 'pct', group: 'boost' },
 		{ key: 'bias',   label: 'BIAS',   color: '#ff6b35', axis: 'pct', group: 'boost' },
-		{ key: 'co1',    label: 'CANOUT', color: '#f472b6', axis: 'pct', group: 'boost' },
+		{ key: 'co1',    label: 'OUT1',   color: '#f472b6', axis: 'pct', group: 'boost' },
 		{ key: 'rpm',    label: 'RPM',    color: '#9ca3af', axis: 'rpm', group: 'engine' },
 		{ key: 'tps',    label: 'TPS',    color: '#c084fc', axis: 'tps', group: 'engine' },
 		{ key: 'knk',       label: 'KNK',    color: '#f87171', axis: 'knk', group: 'signals' },
