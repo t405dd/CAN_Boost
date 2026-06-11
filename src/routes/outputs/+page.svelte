@@ -306,11 +306,16 @@
 				</div>
 				<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.boostSendHint')}</p>
 				<div class="flex items-center gap-3 flex-wrap">
-					<label class="flex items-center gap-1.5">
+					<div class="flex items-center gap-1.5">
 						<span class={labelClass}>{t('canTx.canId')}</span>
+						<button onclick={() => { const v = (parseInt(boostCanIdHex, 16) || 0) - 1; if (v >= 0) boostCanIdHex = v.toString(16).toUpperCase(); }}
+							class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
 						<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
 						<input type="text" bind:value={boostCanIdHex} maxlength="8" class="{inputClass} w-20 uppercase" />
-					</label>
+						<button onclick={() => { const v = (parseInt(boostCanIdHex, 16) || 0) + 1; if (v <= 0x1FFFFFFF) boostCanIdHex = v.toString(16).toUpperCase(); }}
+							class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
+						<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {parseInt(boostCanIdHex, 16) || 0} dec</span>
+					</div>
 					<label class="flex items-center gap-1.5">
 						<span class={labelClass}>{t('canTx.canByteOffset')}</span>
 						<input type="number" min="0" max="6" bind:value={boostCan.canByteOffset} class="{inputClass} w-14 text-center" />
@@ -348,13 +353,18 @@
 							<span class="text-xs text-[var(--color-dash-text)]">{t('outputs.sendToCan')}</span>
 						</label>
 						<div class="flex items-center gap-3 flex-wrap {ch.enabled ? '' : 'opacity-40 pointer-events-none'}">
-							<label class="flex items-center gap-1.5">
+							<div class="flex items-center gap-1.5">
 								<span class={labelClass}>{t('canTx.canId')}</span>
+								<button onclick={() => { if (ch.canId > 0) ch.canId--; }}
+									class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
 								<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
 								<input type="text" value={ch.canId.toString(16).toUpperCase()} maxlength="8"
 									onchange={(e) => { const v = parseInt(e.currentTarget.value, 16); if (!isNaN(v)) ch.canId = v; }}
 									class="{inputClass} w-20 uppercase" />
-							</label>
+								<button onclick={() => { if (ch.canId < 0x1FFFFFFF) ch.canId++; }}
+									class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
+								<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {ch.canId} dec</span>
+							</div>
 							<label class="flex items-center gap-1.5">
 								<span class={labelClass}>{t('canTx.canByteOffset')}</span>
 								<input type="number" min="0" max="6" bind:value={ch.canByteOffset} class="{inputClass} w-14 text-center" />
