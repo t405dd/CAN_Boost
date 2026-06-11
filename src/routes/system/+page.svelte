@@ -3,7 +3,8 @@
 	import { readJsonConfig, writeUint8 } from '$lib/ble/chunked-transfer';
 	import { writeCharacteristic } from '$lib/ble/connection';
 	import { SVC_SYSTEM, CHR_DEVICE_INFO, CHR_COMMAND, CHR_CURRENT_TIME,
-		CMD_RESTART, CMD_FACTORY_RESET } from '$lib/ble/uuids';
+		CMD_RESTART, CMD_FACTORY_RESET, CMD_CAN_TOGGLE } from '$lib/ble/uuids';
+	import { deviceState } from '$lib/stores/device-state.svelte';
 	import type { DeviceInfo } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -22,7 +23,12 @@
 		infoError = '';
 		try {
 			const data = await readJsonConfig<DeviceInfo>(SVC_SYSTEM, CHR_DEVICE_INFO);
-			if (data) deviceInfo = data;
+			if (data) {
+				deviceInfo = data;
+				// Синхронизируем общий стор (видимость CAN-вкладок в навигации)
+				deviceState.info = data;
+				deviceState.canEnabled = data.canEnabled !== false;
+			}
 		} catch (e) {
 			infoError = t('common.error');
 			console.error('[System] Failed to read device info:', e);
@@ -115,6 +121,25 @@
 			console.error('[System] Failed to factory reset:', e);
 		}
 		setTimeout(() => factoryResetStatus = '', 3000);
+	}
+
+	// --- Переключатель CAN (standalone-режим). Применяется ПЕРЕЗАГРУЗКОЙ устройства. ---
+	let canToggleStatus = $state('');
+	let showCanConfirm = $state(false);
+	let canEnabled = $derived(deviceInfo?.canEnabled !== false);
+
+	async function toggleCan() {
+		showCanConfirm = false;
+		canToggleStatus = 'sending';
+		try {
+			const target = canEnabled ? 0 : 1;
+			await writeCharacteristic(SVC_SYSTEM, CHR_COMMAND, new Uint8Array([CMD_CAN_TOGGLE, target]).buffer);
+			canToggleStatus = 'sent';   // устройство перезагрузится само
+		} catch (e) {
+			canToggleStatus = 'error';
+			console.error('[System] CAN toggle failed:', e);
+		}
+		setTimeout(() => canToggleStatus = '', 4000);
 	}
 
 	// --- Status LED legend (matches firmware can_bus_manager.cpp) ---
@@ -266,6 +291,36 @@
 					</button>
 				{/if}
 			</div>
+		</div>
+
+		<!-- Переключатель CAN (standalone-режим) -->
+		<div class="p-3 rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
+			<span class="text-xs text-[var(--color-dash-text-dim)] uppercase tracking-wider block mb-2 inline-flex items-center gap-1">{t('system.canToggle')}<HelpTip key="help.system.canToggle" /></span>
+			<div class="flex items-center justify-between mb-2">
+				<span class="text-sm font-bold {canEnabled ? 'text-[var(--color-dash-success)]' : 'text-[var(--color-dash-warn)]'}">
+					{canEnabled ? t('system.canOn') : t('system.canOff')}
+				</span>
+			</div>
+			<p class="text-[10px] text-[var(--color-dash-text-dim)] mb-3">{t('system.canToggleHint')}</p>
+
+			{#if showCanConfirm}
+				<div class="p-2.5 rounded border border-[var(--color-dash-warn)]/40 bg-[var(--color-dash-warn)]/5">
+					<p class="text-xs text-[var(--color-dash-warn)] mb-2 font-bold">{t('system.canToggleConfirm')}</p>
+					<div class="flex gap-2">
+						<button onclick={toggleCan} class="flex-1 py-1.5 rounded text-xs font-bold bg-[var(--color-dash-warn)] text-black hover:bg-[var(--color-dash-warn)]/80 transition-colors">
+							{canEnabled ? t('system.canTurnOff') : t('system.canTurnOn')}
+						</button>
+						<button onclick={() => showCanConfirm = false} class="flex-1 py-1.5 rounded text-xs font-bold bg-[var(--color-dash-border)]/50 text-[var(--color-dash-text-dim)] hover:bg-[var(--color-dash-border)] transition-colors">{t('common.cancel')}</button>
+					</div>
+				</div>
+			{:else}
+				<button onclick={() => showCanConfirm = true} disabled={canToggleStatus === 'sending'}
+					class="w-full py-2 rounded text-xs font-bold bg-[var(--color-dash-warn)]/10 text-[var(--color-dash-warn)] border border-[var(--color-dash-warn)]/20 hover:bg-[var(--color-dash-warn)]/20 transition-colors disabled:opacity-40">
+					{#if canToggleStatus === 'sent'}{t('system.canToggleSent')}
+					{:else if canToggleStatus === 'error'}{t('system.sendFailed')}
+					{:else}{canEnabled ? t('system.canTurnOff') : t('system.canTurnOn')}{/if}
+				</button>
+			{/if}
 		</div>
 
 		<!-- Time Sync -->

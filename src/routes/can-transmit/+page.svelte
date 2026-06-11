@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES, CHR_CAN_OUT_SETTINGS } from '$lib/ble/uuids';
-	import type { CanOutTable, FirmwareCanOutTable, Co1Settings } from '$lib/types/config';
+	import { SVC_CAN_CONFIG, CHR_CAN_OUT_TABLES, CHR_CAN_OUT_SETTINGS, CHR_OUT_CHANNELS } from '$lib/ble/uuids';
+	import type { CanOutTable, FirmwareCanOutTable, Co1Settings, OutChannelsConfig } from '$lib/types/config';
 	import { firmwareToCanOutTable, canOutTableToFirmware } from '$lib/utils/can-out-adapter';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -13,6 +13,11 @@
 	import { liveData } from '$lib/stores/live-data.svelte';
 	import { getParamDisplayName, getParamShortName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { co1Config, loadCo1Config, defaultCo1Settings } from '$lib/stores/co1-settings.svelte';
+	import { deviceState } from '$lib/stores/device-state.svelte';
+
+	// CAN выключен (standalone) → секция CAN-отправки канала не имеет смысла, прячем.
+	// Таблицы остаются: значения OUT-каналов питают физические ШИМ-выходы и без CAN.
+	let canAvailable = $derived(deviceState.canEnabled !== false);
 
 	const TABLE_LABELS_KEYS = ['canTx.t1base', 'canTx.t2mul1', 'canTx.t3mul2', 'canTx.t4mul3'] as const;
 	const TABLE_IDS = ['T1_Base', 'T2_Multiplier1', 'T3_Multiplier2', 'T4_Multiplier3'];
@@ -40,6 +45,41 @@
 	let co1CanIdHex = $state('269');
 
 	let isConnected = $derived(bleState.status === 'connected');
+
+	// --- Селектор вычисляемого канала OUT1..4 (как селектор карт буста) ---
+	// Прошивка адресует can_out_tables/can_out_settings редактируемым каналом (g_editOutChannel):
+	// пишем {edit:n} в out_channels (apply синхронный), затем перечитываем таблицы и настройки.
+	let outChannels = $state<OutChannelsConfig | null>(null);
+	let editChannel = $state(0);
+	let switchingChannel = $state(false);
+
+	async function loadOutChannels() {
+		const data = await readJsonConfig<OutChannelsConfig>(SVC_CAN_CONFIG, CHR_OUT_CHANNELS);
+		if (data) {
+			outChannels = data;
+			editChannel = data.edit ?? 0;
+		}
+	}
+
+	async function selectChannel(n: number) {
+		if (n === editChannel || switchingChannel) return;
+		switchingChannel = true;
+		loading = true;
+		tablesLoaded = false;
+		try {
+			await writeJsonConfig(SVC_CAN_CONFIG, CHR_OUT_CHANNELS, { edit: n });
+			editChannel = n;
+			// Канал переключён — таблицы и настройки теперь отдаются для него
+			await fetchTables();
+			await loadCo1Config();
+			await loadOutChannels();
+		} catch (e) {
+			showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message);
+		} finally {
+			switchingChannel = false;
+			loading = false;
+		}
+	}
 
 	// Cache-слоты занимают enum [15..54]; системные параметры — < 15 и >= 55 (вкл. производные).
 	const isCacheSlot = (enumVal: number) =>
@@ -184,14 +224,17 @@
 		if (isConnected && !initialLoadDone) {
 			initialLoadDone = true;
 			// Настройки CO1 обычно грузит централизованный hydrate() (см. +layout); здесь фолбэк
-			// (если стор ещё не загружен). Плюс таблицы CAN-выхода (большой конфиг, нужен лишь тут).
+			// (если стор ещё не загружен). Плюс таблицы CAN-выхода (большой конфиг, нужен лишь тут)
+			// и сводка OUT-каналов (селектор).
 			if (!co1Config.loaded) loadCo1Config();
+			loadOutChannels().catch(() => {});
 			loading = true;
 			fetchTables().catch((e) => showStatus(t('canRx.loadFailed') + ': ' + (e as Error).message)).finally(() => { loading = false; });
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
 			tablesLoaded = false;
+			outChannels = null;
 		}
 	});
 
@@ -223,6 +266,25 @@
 			</button>
 		{/snippet}
 
+		<!-- Селектор вычисляемого канала OUT1..4 (таблицы/настройки ниже — для выбранного) -->
+		<div class="flex items-stretch gap-1">
+			<span class="self-center text-[9px] uppercase tracking-wider text-[var(--color-dash-text-dim)] pr-1 shrink-0 inline-flex items-center gap-0.5">{t('canTx.channel')}<HelpTip key="help.canTx.channel" /></span>
+			{#each Array.from({ length: 4 }, (_, i) => i) as i}
+				{@const ch = outChannels?.channels?.[i]}
+				<button onclick={() => selectChannel(i)} disabled={switchingChannel}
+					class="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border truncate transition-colors disabled:opacity-50 {i === editChannel
+						? 'bg-[var(--color-dash-accent)]/20 border-[var(--color-dash-accent)] text-[var(--color-dash-accent)] font-bold'
+						: 'bg-[var(--color-dash-bg)] border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:border-[var(--color-dash-accent)]'}">
+					OUT{i + 1}
+					{#if ch?.enabled}<span class="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-dash-success)] ml-0.5 align-middle"></span>{/if}
+					{#if ch?.value !== undefined}<span class="block text-[9px] font-mono font-normal opacity-70">{ch.value.toFixed(1)}</span>{/if}
+				</button>
+			{/each}
+			{#if switchingChannel}
+				<span class="self-center w-3 h-3 shrink-0 rounded-full border-2 border-[var(--color-dash-border)] border-t-[var(--color-dash-accent)] animate-spin"></span>
+			{/if}
+		</div>
+
 		<!-- Action bar (статус + индикатор загрузки) -->
 		<div class="flex items-center gap-2 flex-wrap empty:hidden">
 			{#if loading}
@@ -236,7 +298,8 @@
 			{/if}
 		</div>
 
-		<!-- Настройки шины CO1 (аккордеон) -->
+		<!-- Настройки CAN-отправки канала (аккордеон). При выключенном CAN (standalone) скрыто. -->
+		{#if canAvailable}
 		<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">
 			<button class="w-full flex items-center justify-between p-3" onclick={() => toggleSection('co1')}>
 				<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
@@ -304,6 +367,7 @@
 				</div>
 			{/if}
 		</section>
+		{/if}
 
 		<!-- Таблицы CAN выхода: по аккордеон-секции на таблицу (T1…T4). -->
 		{#each tables as table, idx}

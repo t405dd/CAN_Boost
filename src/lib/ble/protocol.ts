@@ -54,16 +54,20 @@ export const PARAM_BOOST_BIAS = 57;
 // Производные сигналов (сглаженные в прошивке) — enum 58/59. RPMdot = BST_dRPM (14).
 export const PARAM_MAP_DOT = 58;
 export const PARAM_TPS_DOT = 59;
-// Промежуточные результаты таблиц CO1 (телеметрия) — enum 60..63. Считает прошивка.
+// Промежуточные результаты таблиц редактируемого OUT-канала (телеметрия) — enum 60..63.
 export const PARAM_CO_MUL_1 = 60;
 export const PARAM_CO_MUL_2 = 61;
 export const PARAM_CO_MUL_3 = 62;
 export const PARAM_CO_BASE = 63;
+// Вычисляемые каналы OUT2..4 — enum 64..66 (OUT1 = исторический enum 2 «CO1»).
+export const PARAM_OUT2 = 64;
+export const PARAM_OUT3 = 65;
+export const PARAM_OUT4 = 66;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
 	1:  'TIME',
-	2:  'CANOUT',
+	2:  'OUT1',   // бывш. CANOUT/CO1: вычисляемый канал 1 (wire-enum 2 неизменен)
 	3:  'BST_OUT',
 	4:  'BST_TGT',
 	5:  'BST_ERR',
@@ -91,13 +95,21 @@ PARAM_NAMES[PARAM_CO_MUL_1] = 'COmul1';
 PARAM_NAMES[PARAM_CO_MUL_2] = 'COmul2';
 PARAM_NAMES[PARAM_CO_MUL_3] = 'COmul3';
 PARAM_NAMES[PARAM_CO_BASE] = 'COBase';
+PARAM_NAMES[PARAM_OUT2] = 'OUT2';
+PARAM_NAMES[PARAM_OUT3] = 'OUT3';
+PARAM_NAMES[PARAM_OUT4] = 'OUT4';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.
  * Replicates the firmware slot assignment in init_utils.cpp:
  * iterate enabled messages → enabled signals (non-empty name) → assign slot 0, 1, 2, ...
+ * ЗАТЕМ — включённые локальные входы (ADC/импульс) занимают следующие слоты
+ * (та же раскладка, что в прошивке: локальные ПОСЛЕ CAN-сигналов).
  */
-export function buildCacheSlotLabels(messages: CanMessageConfig[]): string[] {
+export function buildCacheSlotLabels(
+	messages: CanMessageConfig[],
+	localInputs?: { en: boolean; name: string; label?: string }[]
+): string[] {
 	const labels: string[] = new Array(40).fill('');
 	let slot = 0;
 	for (const msg of messages) {
@@ -109,6 +121,14 @@ export function buildCacheSlotLabels(messages: CanMessageConfig[]): string[] {
 			slot++;
 		}
 		if (slot >= 40) break;
+	}
+	if (localInputs) {
+		for (const li of localInputs) {
+			if (!li.en || !li.name) continue;
+			if (slot >= 40) break;
+			labels[slot] = li.label || li.name;
+			slot++;
+		}
 	}
 	return labels;
 }

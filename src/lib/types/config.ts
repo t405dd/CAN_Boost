@@ -89,7 +89,7 @@ export interface CanSignalConfig {
 	offset: number;
 	requiresFtoC: boolean;
 	requiresVssProcessing: boolean;
-	role: number;   // SignalRole: 0=нет, 1=MAP, 2=RPM, 3=TPS, 4=Knock, 5=CLT. Источник сигналов буста/производных.
+	role: number;   // SignalRole: 0=нет, 1=MAP, 2=RPM, 3=TPS, 4=Knock, 5=CLT, 6=APP(педаль). Источник сигналов буста/производных.
 }
 
 export interface CanMessageConfig {
@@ -234,10 +234,78 @@ export interface DeviceInfo {
 	uptime: number;
 	time?: number;
 	bootTime?: number;
+	canEnabled?: boolean; // переключатель CAN (NVS): false = standalone, PWA прячет CAN-вкладки
 	canActive?: boolean;  // драйвер TWAI запущен
 	canData?: boolean;    // CAN-данные реально приходят (не таймаут)
 	boostEnabled?: boolean; // буст-контроллер включён
 	calibrating?: boolean;  // активен режим автокалибровки (g_boostCalibrationActive)
+}
+
+// --- Локальные входы (ADC/импульсные) — wire-формат local_inputs.cpp ---
+export interface LocalInputConfig {
+	en: boolean;
+	type: number;      // 0 = ANALOG, 1 = PULSE
+	pin: number;       // GPIO (-1 = не задан); ANALOG: только ADC1 (GPIO1..10)
+	name: string;      // имя сигнала (lowercase, уникально) — имя в кэше
+	label: string;
+	unit: string;
+	prec: number;
+	role: number;      // SignalRole (0 = нет)
+	// ANALOG: калибровка в вольтах ДАТЧИКА (до делителя)
+	div: number;       // Vpin/Vsensor (0.667 для делителя 5В→3.3В)
+	v1: number; val1: number;
+	v2: number; val2: number;
+	vmin: number; vmax: number;
+	// PULSE: value = частота(Гц) × mult
+	mult: number;
+	minUs: number;
+	toMs: number;
+	// live-поля (только чтение, прошивка добавляет при read)
+	liveVolts?: number;
+	liveValue?: number;
+	slot?: number;     // -1 = не разложен
+}
+
+// --- Физические ШИМ-выходы — wire-формат outputs.cpp ---
+export interface PhysOutputConfig {
+	en: boolean;
+	pin: number;
+	src: string;       // имя параметра-источника ("BST_OUT", "CO1", имя сигнала, "CACHEn")
+	freq: number;      // Гц
+	inMin: number; inMax: number;   // диапазон источника → 0..100% duty
+	invert: boolean;
+	dutyMin: number; dutyMax: number;
+	safe: number;      // duty при невалидном источнике и на старте
+	staleMs: number;
+	liveDuty?: number;
+	liveSource?: number;
+}
+
+// --- Сводка вычисляемых каналов OUT1..4 (out_channels) ---
+export interface OutChannelInfo {
+	enabled: boolean;
+	canId: number;
+	canByteOffset: number;
+	canBigEndian: boolean;
+	canSendIntervalMs: number;
+	value?: number;    // live-значение канала
+}
+export interface OutChannelsConfig {
+	edit: number;
+	numChannels: number;
+	channels: OutChannelInfo[];
+}
+
+// --- Сводка ролей сигналов (signal_roles) ---
+export interface SignalRoleInfo {
+	role: number;          // SignalRole 1..6
+	canParam: number;      // enum-слот CAN-источника (0 = нет)
+	localParam: number;    // enum-слот локального источника (0 = нет)
+	preferLocal: number;   // 0 = CAN primary, 1 = локальный primary
+	active: number;        // 0 = нет, 1 = CAN, 2 = локальный
+	canName?: string;
+	localName?: string;
+	value?: number;        // live-значение разрешённого источника
 }
 
 // --- Boost Controller ---

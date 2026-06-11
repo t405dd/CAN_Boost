@@ -21,6 +21,10 @@ export const CHR_SYSTEM_STATUS = '4d533312-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CAN_RECEIVE = '4d533331-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CAN_OUT_TABLES = '4d533332-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CAN_OUT_SETTINGS = '4d533334-b5a3-f393-e0a9-e50e24dcca9e';
+export const CHR_LOCAL_INPUTS = '4d533335-b5a3-f393-e0a9-e50e24dcca9e';   // локальные входы (ADC/импульс)
+export const CHR_OUTPUTS = '4d533336-b5a3-f393-e0a9-e50e24dcca9e';        // физические ШИМ-выходы
+export const CHR_OUT_CHANNELS = '4d533337-b5a3-f393-e0a9-e50e24dcca9e';   // сводка OUT1..4 + селектор edit-канала
+export const CHR_SIGNAL_ROLES = '4d533338-b5a3-f393-e0a9-e50e24dcca9e';   // сводка ролей (источники/приоритет/активный)
 
 // System Service characteristics
 export const CHR_DEVICE_INFO = '4d533371-b5a3-f393-e0a9-e50e24dcca9e';
@@ -60,6 +64,7 @@ export const BLE_DEVICE_NAME_PREFIX = 'CAN_BC';
 // P7 always-on adaptive: обучение идёт всегда (нет старт/стоп-ритуала).
 export const CMD_RESTART = 0x01;
 export const CMD_FACTORY_RESET = 0x02;
+export const CMD_CAN_TOGGLE = 0x30;            // + байт 0/1: выкл/вкл CAN (NVS + автоперезагрузка)
 export const CMD_BOOST_SAVE_NOW = 0x21;        // сохранить накопленное обучение сейчас
 export const CMD_BOOST_CAL_RESET_LEARN = 0x23; // сброс таблиц Ki/Kp/Kd к дефолтам
 export const CMD_BOOST_COMMIT_BASELINE = 0x24; // зафиксировать текущее как «эталон»

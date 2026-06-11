@@ -5,6 +5,7 @@
 	import { pwa, promptInstall } from '$lib/stores/pwa-install.svelte';
 	import { pwaUpdate, checkForUpdate, applyUpdate } from '$lib/stores/pwa-update.svelte';
 	import { boostMaps, setActiveBoostMap } from '$lib/stores/boost-maps.svelte';
+	import { deviceState } from '$lib/stores/device-state.svelte';
 	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
 	import { handleConnectionChange, markManualDisconnect } from '$lib/stores/client-log.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
@@ -54,14 +55,20 @@
 	// Подсказка для iOS (там нет программной установки).
 	let showIosHint = $derived(pwa.isIos && !pwa.standalone && !pwa.canInstall);
 
-	const navItems = [
-		{ href: '/', key: 'nav.liveData' as const, icon: 'M' },
-		{ href: '/can-receive', key: 'nav.canReceive' as const, icon: 'R' },
-		{ href: '/can-transmit', key: 'nav.canTransmit' as const, icon: 'T' },
-		{ href: '/boost', key: 'nav.boost' as const, icon: 'B' },
-		{ href: '/logging', key: 'nav.logging' as const, icon: 'L' },
-		{ href: '/system', key: 'nav.system' as const, icon: 'G' }
+	// canOnly: вкладка прячется при выключенном CAN (standalone-режим устройства).
+	// canEnabled===null (ещё не прочитан DeviceInfo) → показываем всё, не прячем по незнанию.
+	const allNavItems = [
+		{ href: '/', key: 'nav.liveData' as const, icon: 'M', canOnly: false },
+		{ href: '/can-receive', key: 'nav.canReceive' as const, icon: 'R', canOnly: true },
+		{ href: '/can-transmit', key: 'nav.canTransmit' as const, icon: 'T', canOnly: false },
+		{ href: '/roles', key: 'nav.roles' as const, icon: 'S', canOnly: false },
+		{ href: '/local-inputs', key: 'nav.localInputs' as const, icon: 'I', canOnly: false },
+		{ href: '/outputs', key: 'nav.outputs' as const, icon: 'O', canOnly: false },
+		{ href: '/boost', key: 'nav.boost' as const, icon: 'B', canOnly: false },
+		{ href: '/logging', key: 'nav.logging' as const, icon: 'L', canOnly: false },
+		{ href: '/system', key: 'nav.system' as const, icon: 'G', canOnly: false }
 	];
+	let navItems = $derived(allNavItems.filter(i => !i.canOnly || deviceState.canEnabled !== false));
 
 	const statusColors: Record<string, string> = {
 		connected: 'bg-[var(--color-dash-success)]',

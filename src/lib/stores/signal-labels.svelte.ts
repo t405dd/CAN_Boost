@@ -6,6 +6,7 @@ import { SVC_CAN_CONFIG, CHR_CAN_RECEIVE } from '$lib/ble/uuids';
 import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 import { setCacheLabelsFromConfig } from '$lib/stores/live-data.svelte';
 import { normalizeTempUnit } from '$lib/utils/param-mapping';
+import { localInputsStore, loadLocalInputs } from '$lib/stores/local-inputs.svelte';
 import type { CanMessageConfig } from '$lib/types/config';
 
 export interface SignalLabel {
@@ -48,6 +49,19 @@ export async function loadSignalLabels(force = false): Promise<void> {
 			}
 		}
 
+		// Локальные входы занимают слоты ПОСЛЕ CAN-сигналов (раскладка прошивки, init_utils).
+		// Конфиг входов мелкий — читаем (in-flight дедуп внутри), без него подписи локальных
+		// слотов остались бы "cacheN".
+		await loadLocalInputs();
+		if (localInputsStore.loaded) {
+			for (const li of localInputsStore.inputs) {
+				if (!li.en || !li.name) continue;
+				if (slotIndex >= 40) break;
+				newLabels[slotIndex] = { label: li.label || li.name, unit: li.unit || '' };
+				slotIndex++;
+			}
+		}
+
 		// Update reactive state
 		for (const key of Object.keys(signalLabels)) {
 			delete signalLabels[Number(key)];
@@ -57,7 +71,7 @@ export async function loadSignalLabels(force = false): Promise<void> {
 
 		// Тот же конфиг — в стор live-данных, чтобы и живые значения показывались
 		// с понятными именами (RPM/MAP/…), а не CACHE0.
-		setCacheLabelsFromConfig(config);
+		setCacheLabelsFromConfig(config, localInputsStore.loaded ? localInputsStore.inputs : undefined);
 
 		console.log(`[SignalLabels] Loaded ${slotIndex} cache slot labels`);
 	} catch (e) {

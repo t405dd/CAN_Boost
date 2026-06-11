@@ -24,9 +24,13 @@ export const liveData = $state({
 // Cache slot labels: index → user label (loaded from localStorage or updated by can-receive page)
 let _cacheLabels: string[] = new Array(40).fill('');
 
-/** Update cache slot labels from a loaded CAN receive config */
-export function setCacheLabelsFromConfig(messages: CanMessageConfig[]) {
-	_cacheLabels = buildCacheSlotLabels(messages);
+/** Update cache slot labels from a loaded CAN receive config.
+ *  localInputs (опц.) — включённые локальные входы занимают слоты ПОСЛЕ CAN-сигналов. */
+export function setCacheLabelsFromConfig(
+	messages: CanMessageConfig[],
+	localInputs?: { en: boolean; name: string; label?: string }[]
+) {
+	_cacheLabels = buildCacheSlotLabels(messages, localInputs);
 	if (typeof window !== 'undefined') {
 		localStorage.setItem('can_rx_cache_labels', JSON.stringify(_cacheLabels));
 	}

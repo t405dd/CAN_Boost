@@ -38,7 +38,8 @@
 		{ value: 2, labelKey: 'canRx.roleRpm' },
 		{ value: 3, labelKey: 'canRx.roleTps' },
 		{ value: 4, labelKey: 'canRx.roleKnock' },
-		{ value: 5, labelKey: 'canRx.roleClt' }
+		{ value: 5, labelKey: 'canRx.roleClt' },
+		{ value: 6, labelKey: 'canRx.roleApp' }
 	] as const;
 
 	// Подсказка роли по имени — чтобы каталог/пресет назначали MAP/RPM/TPS/CLT/Knock сразу.
@@ -50,6 +51,7 @@
 			if (n === 'tps') return 3;
 			if (n === 'knock' || n === 'knk') return 4;
 			if (n === 'clt' || n === 'coolant') return 5;
+			if (n === 'app' || n === 'pps') return 6;
 		}
 		return 0;
 	}
