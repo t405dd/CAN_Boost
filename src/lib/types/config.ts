@@ -281,6 +281,35 @@ export interface PhysOutputConfig {
 	liveSource?: number;
 }
 
+// --- EWG: электронный вестгейт (сервопривод BTS7960). Ключи 1:1 с ewg_servo.cpp. ---
+export interface EwgConfig {
+	en: boolean;
+	rpwm: number; lpwm: number; enpin: number;   // GPIO драйвера (-1 = не задан)
+	freq: number; invDir: boolean;
+	src: string; inMin: number; inMax: number; invSp: boolean; staleMs: number;
+	// датчик положения (потенциометр на ADC1, 2-точечная калибровка вольты→%)
+	posPin: number; posDiv: number;
+	pv1: number; pp1: number; pv2: number; pp2: number;
+	pvmin: number; pvmax: number; posEma: number;
+	// токовый сенс
+	curPin: number; curDiv: number; curV0: number; curApV: number; curLim: number; curEma: number;
+	// позиционный PID
+	kp: number; ki: number; kd: number; iwind: number; dalpha: number;
+	// поведение серво
+	deadband: number; minOpen: number; minClose: number; maxDuty: number; slew: number;
+	ff: number[];   // spring-feedforward по ходу (MAX_EWG_FF_POINTS точек)
+	// клин / безопасность
+	stallA: number; stallMs: number; stallMin: number;
+	safePos: number; faultRel: number; home: boolean;
+	// тепловая перекалибровка
+	adClosed: boolean; adOpen: boolean; recalMap: number; recalTps: number; recalRate: number;
+	// кэш модели (справочно, пишет автотюн)
+	idKv: number; idTheta: number; idSigma: number;
+	// live-поля (read добавляет прошивка)
+	livePos?: number; liveTgt?: number; liveCur?: number; liveVolts?: number;
+	liveDuty?: number; liveState?: number; liveAt?: number;
+}
+
 // --- Сводка вычисляемых каналов OUT1..4 (out_channels) ---
 export interface OutChannelInfo {
 	enabled: boolean;

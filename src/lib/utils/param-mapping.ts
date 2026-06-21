@@ -37,6 +37,14 @@ const SYSTEM_PARAMS: [string, string, number][] = [
 	['COmul2', 'co_mul_2', 61],
 	['COmul3', 'co_mul_3', 62],
 	['COBase', 'co_base', 63],
+	// EWG (электронный вестгейт, сервопривод) — телеметрия, enum 67..73.
+	['EWG_TGT', 'ewg_target_pos', 67],
+	['EWG_POS', 'ewg_actual_pos', 68],
+	['EWG_ERR', 'ewg_error', 69],
+	['EWG_DTY', 'ewg_duty', 70],
+	['EWG_AMP', 'ewg_current', 71],
+	['EWG_ST', 'ewg_state', 72],
+	['EWG_AT', 'ewg_autotune', 73],
 ];
 
 // --- Cache slots (enum 15-54) ---

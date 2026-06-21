@@ -25,6 +25,7 @@ export const CHR_LOCAL_INPUTS = '4d533335-b5a3-f393-e0a9-e50e24dcca9e';   // л�
 export const CHR_OUTPUTS = '4d533336-b5a3-f393-e0a9-e50e24dcca9e';        // физические ШИМ-выходы
 export const CHR_OUT_CHANNELS = '4d533337-b5a3-f393-e0a9-e50e24dcca9e';   // сводка OUT1..4 + селектор edit-канала
 export const CHR_SIGNAL_ROLES = '4d533338-b5a3-f393-e0a9-e50e24dcca9e';   // сводка ролей (источники/приоритет/активный)
+export const CHR_EWG = '4d533339-b5a3-f393-e0a9-e50e24dcca9e';           // электронный вестгейт (сервопривод BTS7960)
 
 // System Service characteristics
 export const CHR_DEVICE_INFO = '4d533371-b5a3-f393-e0a9-e50e24dcca9e';
@@ -71,3 +72,9 @@ export const CMD_BOOST_SAVE_NOW = 0x21;        // сохранить накоп�
 export const CMD_BOOST_CAL_RESET_LEARN = 0x23; // сброс таблиц Ki/Kp/Kd к дефолтам
 export const CMD_BOOST_COMMIT_BASELINE = 0x24; // зафиксировать текущее как «эталон»
 export const CMD_BOOST_REVERT_BASELINE = 0x25; // откатить к «эталону»
+// EWG (электронный вестгейт): моторные/калибровочные действия. 🔴 двигатель OFF/стенд.
+export const CMD_EWG_AUTOTUNE_START = 0x45;    // старт полной автонастройки (мастер S1–S6)
+export const CMD_EWG_AUTOTUNE_ABORT = 0x46;    // аборт автонастройки
+export const CMD_EWG_RELAY_TEST = 0x47;        // relay-тест (Tyreus–Luyben)
+export const CMD_EWG_HOT_RECAL = 0x48;         // горячая перекалибровка (сохранить шкалу упоров)
+export const CMD_EWG_JOG = 0x49;               // + байт: 0=стоп, 1=открывать, 2=закрывать

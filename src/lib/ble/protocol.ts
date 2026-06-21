@@ -63,6 +63,14 @@ export const PARAM_CO_BASE = 63;
 export const PARAM_OUT2 = 64;
 export const PARAM_OUT3 = 65;
 export const PARAM_OUT4 = 66;
+// EWG (электронный вестгейт, сервопривод) — телеметрия, enum 67..73.
+export const PARAM_EWG_TARGET_POS = 67;
+export const PARAM_EWG_ACTUAL_POS = 68;
+export const PARAM_EWG_ERROR = 69;
+export const PARAM_EWG_DUTY = 70;
+export const PARAM_EWG_CURRENT = 71;
+export const PARAM_EWG_STATE = 72;
+export const PARAM_EWG_AUTOTUNE = 73;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
@@ -98,6 +106,13 @@ PARAM_NAMES[PARAM_CO_BASE] = 'COBase';
 PARAM_NAMES[PARAM_OUT2] = 'OUT2';
 PARAM_NAMES[PARAM_OUT3] = 'OUT3';
 PARAM_NAMES[PARAM_OUT4] = 'OUT4';
+PARAM_NAMES[PARAM_EWG_TARGET_POS] = 'EWG_TGT';
+PARAM_NAMES[PARAM_EWG_ACTUAL_POS] = 'EWG_POS';
+PARAM_NAMES[PARAM_EWG_ERROR] = 'EWG_ERR';
+PARAM_NAMES[PARAM_EWG_DUTY] = 'EWG_DTY';
+PARAM_NAMES[PARAM_EWG_CURRENT] = 'EWG_AMP';
+PARAM_NAMES[PARAM_EWG_STATE] = 'EWG_ST';
+PARAM_NAMES[PARAM_EWG_AUTOTUNE] = 'EWG_AT';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.
