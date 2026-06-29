@@ -10,25 +10,35 @@ export type Severity = 'none' | 'warn' | 'danger';
 export interface ParamWarning {
 	warnLowEn: boolean;
 	warnLow: number;
+	warnLowColor: string;
 	warnHighEn: boolean;
 	warnHigh: number;
+	warnHighColor: string;
 	dangerLowEn: boolean;
 	dangerLow: number;
+	dangerLowColor: string;
 	dangerHighEn: boolean;
 	dangerHigh: number;
+	dangerHighColor: string;
 	sound: boolean;
 }
 
+// Дефолтные цвета: верхние пороги — «горячие» (оранж/красный), «предупреждение ниже» —
+// голубой (холодный мотор/низкое давление). Любой можно переопределить в модалке.
 export function defaultWarning(): ParamWarning {
 	return {
 		warnLowEn: false,
 		warnLow: 0,
+		warnLowColor: '#22d3ee',
 		warnHighEn: false,
 		warnHigh: 0,
+		warnHighColor: '#ff6b35',
 		dangerLowEn: false,
 		dangerLow: 0,
+		dangerLowColor: '#ff0040',
 		dangerHighEn: false,
 		dangerHigh: 0,
+		dangerHighColor: '#ff0040',
 		sound: false
 	};
 }
@@ -96,14 +106,28 @@ export function setWarning(paramType: number, w: ParamWarning) {
 	saveDashPrefs();
 }
 
+export interface AlarmState {
+	level: Severity;
+	color: string | null; // цвет сработавшего порога (для фона плашки)
+}
+
+/** Состояние тревоги по текущему значению: уровень + цвет сработавшего порога.
+ *  Приоритет: dangerHigh → dangerLow → warnHigh → warnLow (опасность важнее, high/low
+ *  взаимоисключающи). Цвет берётся именно у сработавшего порога — поэтому «ниже» и «выше»
+ *  могут быть разными цветами (напр. голубой холодный / оранжевый горячий). */
+export function alarmStateOf(paramType: number, value: number): AlarmState {
+	const w = dashPrefs.warnings[paramType];
+	if (!w) return { level: 'none', color: null };
+	if (w.dangerHighEn && value >= w.dangerHigh) return { level: 'danger', color: w.dangerHighColor };
+	if (w.dangerLowEn && value <= w.dangerLow) return { level: 'danger', color: w.dangerLowColor };
+	if (w.warnHighEn && value >= w.warnHigh) return { level: 'warn', color: w.warnHighColor };
+	if (w.warnLowEn && value <= w.warnLow) return { level: 'warn', color: w.warnLowColor };
+	return { level: 'none', color: null };
+}
+
 /** Уровень тревоги параметра по текущему значению. danger важнее warn. */
 export function severityOf(paramType: number, value: number): Severity {
-	const w = dashPrefs.warnings[paramType];
-	if (!w) return 'none';
-	if ((w.dangerHighEn && value >= w.dangerHigh) || (w.dangerLowEn && value <= w.dangerLow))
-		return 'danger';
-	if ((w.warnHighEn && value >= w.warnHigh) || (w.warnLowEn && value <= w.warnLow)) return 'warn';
-	return 'none';
+	return alarmStateOf(paramType, value).level;
 }
 
 load();

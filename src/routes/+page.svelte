@@ -4,7 +4,7 @@
 	import { bleState, connect, connectScanAll } from '$lib/stores/ble-connection.svelte';
 	import { liveData, getDashParamList } from '$lib/stores/live-data.svelte';
 	import { t } from '$lib/i18n/index.svelte';
-	import { dashPrefs, severityOf, setOrder } from '$lib/stores/dash-prefs.svelte';
+	import { dashPrefs, severityOf, alarmStateOf, setOrder } from '$lib/stores/dash-prefs.svelte';
 	import { setAlarm } from '$lib/utils/alarm-sound';
 	import ParamWarningModal from '$lib/components/ParamWarningModal.svelte';
 
@@ -160,15 +160,16 @@
 		activePt = null;
 	}
 
-	function tileClasses(pt: number): string {
-		const p = byType.get(pt);
-		// Офлайн/устаревшее значение не подсвечиваем тревогой — оно может быть неактуальным.
-		const sev = p && p.online ? severityOf(pt, p.value) : 'none';
-		if (sev === 'danger')
-			return 'bg-[var(--color-dash-danger)]/30 border-[var(--color-dash-danger)] animate-pulse';
-		if (sev === 'warn')
-			return 'bg-[var(--color-dash-warn)]/25 border-[var(--color-dash-warn)]';
-		return 'bg-[var(--color-dash-card)] border-[var(--color-dash-border)]/50 hover:border-[var(--color-dash-accent)]/30';
+	// #rgb / #rrggbb → rgba() с заданной прозрачностью (для фона плашки).
+	function hexToRgba(hex: string, alpha: number): string {
+		let h = hex.replace('#', '');
+		if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+		const n = parseInt(h, 16);
+		if (Number.isNaN(n) || h.length !== 6) return hex;
+		const r = (n >> 16) & 255;
+		const g = (n >> 8) & 255;
+		const b = n & 255;
+		return `rgba(${r},${g},${b},${alpha})`;
 	}
 
 	// --- Звуковая тревога: бипаем, пока хоть один параметр со звуком за порогом ---
@@ -306,11 +307,15 @@
 			>
 				{#each displayTypes as pt (pt)}
 					{@const param = byType.get(pt)}
+					{@const al = param?.online ? alarmStateOf(pt, param.value) : null}
 					<div
 						data-pt={pt}
 						animate:flip={{ duration: 220 }}
-						class="p-2.5 rounded-lg border transition-colors {tileClasses(pt)}
+						class="p-2.5 rounded-lg border transition-colors
+							{al?.color ? '' : 'bg-[var(--color-dash-card)] border-[var(--color-dash-border)]/50 hover:border-[var(--color-dash-accent)]/30'}
+							{al?.level === 'danger' ? 'animate-pulse' : ''}
 							{dragging && dragType === pt ? 'ring-2 ring-[var(--color-dash-accent)] scale-105 shadow-lg shadow-black/40 z-10 opacity-90' : ''}"
+						style={al?.color ? `background-color:${hexToRgba(al.color, 0.28)};border-color:${al.color}` : ''}
 					>
 						<div class="text-sm font-semibold text-[var(--color-dash-text-dim)] tracking-wide truncate mb-1">
 							{param?.name ?? ''}
