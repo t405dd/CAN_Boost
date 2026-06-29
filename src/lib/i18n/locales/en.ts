@@ -76,6 +76,17 @@ export default {
 	'live.waitingForData': 'Waiting for data from device...',
 	'live.connectionFailed': 'Connection failed. Check that the device is powered on and nearby.',
 	'live.scanFailed': 'Scan failed. No devices found. Try restarting Bluetooth.',
+	'live.hint': 'Hold a tile to reorder · double-tap for warnings',
+	'live.offlineConfig': 'Offline — showing last known values',
+	'live.warn.forget': 'Remove tile',
+	'live.warn.hint': 'When the value crosses a threshold, the whole tile changes color (orange = warning, red = danger).',
+	'live.warn.dangerHigh': 'Danger above',
+	'live.warn.warnHigh': 'Warning above',
+	'live.warn.warnLow': 'Warning below',
+	'live.warn.dangerLow': 'Danger below',
+	'live.warn.sound': 'Audible alarm on threshold',
+	'live.warn.reset': 'Reset',
+	'live.warn.save': 'Save',
 
 	// Display page
 	'display.title': 'Display Config',
