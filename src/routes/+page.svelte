@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { flip } from 'svelte/animate';
 	import { bleState, connect, connectScanAll } from '$lib/stores/ble-connection.svelte';
 	import { liveData, getDashParamList } from '$lib/stores/live-data.svelte';
 	import { t } from '$lib/i18n/index.svelte';
@@ -41,6 +42,7 @@
 	let dragging = $state(false);
 	let dragList = $state<number[]>([]); // рабочая копия порядка во время перетаскивания
 	let dragType = $state<number | null>(null); // плашка под пальцем
+	let gridEl = $state<HTMLDivElement>();
 
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
 	let startX = 0;
@@ -191,6 +193,20 @@
 	});
 
 	onDestroy(() => setAlarm(null));
+
+	// Пока идёт перетаскивание — глушим прокрутку страницы. touch-action менять посреди жеста
+	// поздно (браузер уже застолбил тач под скролл при touchstart), поэтому вешаем НЕ-passive
+	// touchmove и зовём preventDefault: только так pointermove продолжает приходить и reorder
+	// работает, а не уезжает страница под пальцем.
+	$effect(() => {
+		const el = gridEl;
+		if (!el) return;
+		const block = (e: TouchEvent) => {
+			if (dragging) e.preventDefault();
+		};
+		el.addEventListener('touchmove', block, { passive: false });
+		return () => el.removeEventListener('touchmove', block);
+	});
 </script>
 
 <div class="space-y-3">
@@ -280,6 +296,7 @@
 			<p class="text-[11px] text-[var(--color-dash-text-dim)] text-center -mt-1">{t('live.hint')}</p>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
+				bind:this={gridEl}
 				class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 no-select"
 				style="touch-action:{dragging ? 'none' : 'auto'}"
 				onpointerdown={onPointerDown}
@@ -289,20 +306,19 @@
 			>
 				{#each displayTypes as pt (pt)}
 					{@const param = byType.get(pt)}
-					{#if param}
-						<div
-							data-pt={pt}
-							class="p-2.5 rounded-lg border transition-colors {tileClasses(pt)}
-								{dragging && dragType === pt ? 'ring-2 ring-[var(--color-dash-accent)] scale-105 z-10' : ''}"
-						>
-							<div class="text-sm font-semibold text-[var(--color-dash-text-dim)] tracking-wide truncate mb-1">
-								{param.name}
-							</div>
-							<div class="text-2xl font-bold text-[var(--color-dash-text)] tabular-nums leading-tight {param.online ? '' : 'opacity-50'}">
-								{formatValue(param.value)}
-							</div>
+					<div
+						data-pt={pt}
+						animate:flip={{ duration: 220 }}
+						class="p-2.5 rounded-lg border transition-colors {tileClasses(pt)}
+							{dragging && dragType === pt ? 'ring-2 ring-[var(--color-dash-accent)] scale-105 shadow-lg shadow-black/40 z-10 opacity-90' : ''}"
+					>
+						<div class="text-sm font-semibold text-[var(--color-dash-text-dim)] tracking-wide truncate mb-1">
+							{param?.name ?? ''}
 						</div>
-					{/if}
+						<div class="text-2xl font-bold text-[var(--color-dash-text)] tabular-nums leading-tight {param?.online ? '' : 'opacity-50'}">
+							{param ? formatValue(param.value) : ''}
+						</div>
+					</div>
 				{/each}
 			</div>
 		{:else if isConnected}
