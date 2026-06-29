@@ -13,7 +13,7 @@
 	import type { EwgConfig } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
-	import { allParamEntries, firmwareNameToPwaName } from '$lib/utils/param-mapping';
+	import { allParamEntries, firmwareNameToPwaName, tableChannelLabel } from '$lib/utils/param-mapping';
 	import { getParamDisplayName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { liveData } from '$lib/stores/live-data.svelte';
 
@@ -63,7 +63,8 @@
 		)
 	);
 	const srcLabel = (fw: string) => {
-		if (fw === 'CO1') return 'OUT1';
+		const tbl = tableChannelLabel(fw);   // CO1/OUT2..4 → TBL1..4
+		if (tbl) return tbl;
 		if (/^CACHE\d+$/.test(fw)) return getParamDisplayName(firmwareNameToPwaName(fw));
 		return fw;
 	};

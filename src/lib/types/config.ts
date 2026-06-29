@@ -325,6 +325,21 @@ export interface OutChannelsConfig {
 	channels: OutChannelInfo[];
 }
 
+// --- CAN-трансляция параметра в шину (tx_signals) ---
+// Маршрут «значение параметра → CAN-кадр»: источник задаётся firmware-именем
+// (CACHEn/BST_OUT/OUT1..4/имя сигнала). Главная цель — вывести локальные GPIO-входы
+// устройства в шину. Кодировка: uint16 = round(value × scale), кламп 0..65535.
+export interface SignalTxConfig {
+	en: boolean;
+	src: string;               // firmware-имя источника ('' = нет)
+	canId: number;
+	canByteOffset: number;
+	canBigEndian: boolean;
+	scale: number;             // множитель value → uint16
+	canSendIntervalMs: number;
+	value?: number;            // live: сырое значение источника (read добавляет прошивка)
+}
+
 // --- Сводка ролей сигналов (signal_roles) ---
 export interface SignalRoleInfo {
 	role: number;          // SignalRole 1..6

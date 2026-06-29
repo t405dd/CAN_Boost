@@ -101,7 +101,7 @@
 		{ key: 'target', label: 'TGT',    color: '#ffd400', axis: 'kpa', group: 'boost' },
 		{ key: 'boost',  label: 'BOOST',  color: '#00ff88', axis: 'pct', group: 'boost' },
 		{ key: 'bias',   label: 'BIAS',   color: '#ff6b35', axis: 'pct', group: 'boost' },
-		{ key: 'co1',    label: 'OUT1',   color: '#f472b6', axis: 'pct', group: 'boost' },
+		{ key: 'co1',    label: 'TBL1',   color: '#f472b6', axis: 'pct', group: 'boost' },
 		{ key: 'rpm',    label: 'RPM',    color: '#9ca3af', axis: 'rpm', group: 'engine' },
 		{ key: 'tps',    label: 'TPS',    color: '#c084fc', axis: 'tps', group: 'engine' },
 		{ key: 'knk',       label: 'KNK',    color: '#f87171', axis: 'knk', group: 'signals' },

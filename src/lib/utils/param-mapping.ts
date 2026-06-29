@@ -111,6 +111,20 @@ export function pwaNameToEnum(pwaName: string): number {
 	return firmwareNameToEnum(pwaNameToFirmwareName(pwaName));
 }
 
+/** User-facing label for the computed multiplied-table output channels.
+ *  Firmware/wire names stay CO1/OUT2..4 (enum 2, 64..66) for protocol & file
+ *  compatibility; the UI shows them as TBL1..4 (выход перемноженных таблиц).
+ *  Returns null for any non-channel name. */
+export function tableChannelLabel(firmwareName: string): string | null {
+	switch (firmwareName) {
+		case 'CO1':  return 'TBL1';
+		case 'OUT2': return 'TBL2';
+		case 'OUT3': return 'TBL3';
+		case 'OUT4': return 'TBL4';
+		default:     return null;
+	}
+}
+
 /** A signal with F→C conversion enabled is decoded to Celsius by the firmware
  *  (can_handler.cpp), so its unit must never read °F. Normalizes a possibly-stale
  *  °F unit (from a config saved before the catalog was corrected) to °C. */

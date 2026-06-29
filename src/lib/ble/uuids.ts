@@ -26,6 +26,7 @@ export const CHR_OUTPUTS = '4d533336-b5a3-f393-e0a9-e50e24dcca9e';        // ф�
 export const CHR_OUT_CHANNELS = '4d533337-b5a3-f393-e0a9-e50e24dcca9e';   // сводка OUT1..4 + селектор edit-канала
 export const CHR_SIGNAL_ROLES = '4d533338-b5a3-f393-e0a9-e50e24dcca9e';   // сводка ролей (источники/приоритет/активный)
 export const CHR_EWG = '4d533339-b5a3-f393-e0a9-e50e24dcca9e';           // электронный вестгейт (сервопривод BTS7960)
+export const CHR_TX_SIGNALS = '4d53333a-b5a3-f393-e0a9-e50e24dcca9e';    // CAN-трансляция параметров (локальные входы → шина)
 
 // System Service characteristics
 export const CHR_DEVICE_INFO = '4d533371-b5a3-f393-e0a9-e50e24dcca9e';

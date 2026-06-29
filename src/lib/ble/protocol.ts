@@ -75,7 +75,7 @@ export const PARAM_EWG_AUTOTUNE = 73;
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
 	1:  'TIME',
-	2:  'OUT1',   // бывш. CANOUT/CO1: вычисляемый канал 1 (wire-enum 2 неизменен)
+	2:  'TBL1',   // бывш. CANOUT/CO1/OUT1: выход перемноженных таблиц 1 (wire-enum 2 / wire-имя 'CO1' неизменны)
 	3:  'BST_OUT',
 	4:  'BST_TGT',
 	5:  'BST_ERR',
@@ -103,9 +103,9 @@ PARAM_NAMES[PARAM_CO_MUL_1] = 'COmul1';
 PARAM_NAMES[PARAM_CO_MUL_2] = 'COmul2';
 PARAM_NAMES[PARAM_CO_MUL_3] = 'COmul3';
 PARAM_NAMES[PARAM_CO_BASE] = 'COBase';
-PARAM_NAMES[PARAM_OUT2] = 'OUT2';
-PARAM_NAMES[PARAM_OUT3] = 'OUT3';
-PARAM_NAMES[PARAM_OUT4] = 'OUT4';
+PARAM_NAMES[PARAM_OUT2] = 'TBL2';   // wire-имя 'OUT2' неизменно (см. param-mapping)
+PARAM_NAMES[PARAM_OUT3] = 'TBL3';
+PARAM_NAMES[PARAM_OUT4] = 'TBL4';
 PARAM_NAMES[PARAM_EWG_TARGET_POS] = 'EWG_TGT';
 PARAM_NAMES[PARAM_EWG_ACTUAL_POS] = 'EWG_POS';
 PARAM_NAMES[PARAM_EWG_ERROR] = 'EWG_ERR';

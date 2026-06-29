@@ -85,10 +85,11 @@
 			(!isCacheSlot(p.enumVal) || signalLabels[p.enumVal - PARAM_CACHE_SLOT_START] !== undefined)
 		)
 	);
-	// Понятные имена (оси): pwa-имена → дружелюбные RPMdot/MAPdot/TPSdot и семейство OUT.
+	// Понятные имена (оси): pwa-имена → дружелюбные RPMdot/MAPdot/TPSdot и семейство TBL
+	// (выход перемноженных таблиц; wire-имена co1/out2..4 неизменны).
 	const AXIS_FRIENDLY_PWA: Record<string, string> = {
 		boost_drpm: 'RPMdot', map_dot: 'MAPdot', tps_dot: 'TPSdot',
-		co1: 'OUT1', out2: 'OUT2', out3: 'OUT3', out4: 'OUT4'
+		co1: 'TBL1', out2: 'TBL2', out3: 'TBL3', out4: 'TBL4'
 	};
 	const axisOptionLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamDisplayName(pwaName);
 	const axisShortLabel = (pwaName: string) => AXIS_FRIENDLY_PWA[pwaName] ?? getParamShortName(pwaName);
@@ -240,7 +241,7 @@
 					class="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border truncate transition-colors disabled:opacity-50 {i === editChannel
 						? 'bg-[var(--color-dash-accent)]/20 border-[var(--color-dash-accent)] text-[var(--color-dash-accent)] font-bold'
 						: 'bg-[var(--color-dash-bg)] border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:border-[var(--color-dash-accent)]'}">
-					OUT{i + 1}
+					TBL{i + 1}
 					{#if ch?.enabled}<span class="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-dash-success)] ml-0.5 align-middle"></span>{/if}
 					{#if ch?.value !== undefined}<span class="block text-[9px] font-mono font-normal opacity-70">{ch.value.toFixed(1)}</span>{/if}
 				</button>

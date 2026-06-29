@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { readJsonConfig, writeJsonConfig } from '$lib/ble/chunked-transfer';
 	import { bleState } from '$lib/stores/ble-connection.svelte';
-	import { SVC_CAN_CONFIG, CHR_OUTPUTS, CHR_OUT_CHANNELS, SVC_BOOST, CHR_BOOST_SETTINGS } from '$lib/ble/uuids';
-	import type { PhysOutputConfig, OutChannelsConfig, OutChannelInfo } from '$lib/types/config';
+	import { SVC_CAN_CONFIG, CHR_OUTPUTS, CHR_OUT_CHANNELS, CHR_TX_SIGNALS, SVC_BOOST, CHR_BOOST_SETTINGS } from '$lib/ble/uuids';
+	import type { PhysOutputConfig, OutChannelsConfig, OutChannelInfo, SignalTxConfig } from '$lib/types/config';
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
-	import { allParamEntries, firmwareNameToPwaName } from '$lib/utils/param-mapping';
+	import { allParamEntries, firmwareNameToPwaName, tableChannelLabel } from '$lib/utils/param-mapping';
 	import { PARAM_CACHE_SLOT_START } from '$lib/ble/protocol';
 	import { getParamDisplayName, signalLabels } from '$lib/stores/signal-labels.svelte';
 	import { boostSettings, loadBoostSettings } from '$lib/stores/boost-settings.svelte';
@@ -51,7 +51,8 @@
 		)
 	);
 	const srcLabel = (firmwareName: string) => {
-		if (firmwareName === 'CO1') return 'OUT1';   // переосмысленное имя канала 1
+		const tbl = tableChannelLabel(firmwareName);   // CO1/OUT2..4 → TBL1..4
+		if (tbl) return tbl;
 		const m = firmwareName.match(/^CACHE(\d+)$/);
 		if (m) return getParamDisplayName(firmwareNameToPwaName(firmwareName));
 		return firmwareName;
@@ -121,6 +122,40 @@
 		}
 	}
 
+	// --- Трансляция параметров (passthrough): локальные входы и любые сигналы → CAN ---
+	const MAX_TX_SIGNALS = 6;
+	function defaultTxSignal(i: number): SignalTxConfig {
+		return { en: false, src: '', canId: 0x280 + i, canByteOffset: 0, canBigEndian: true, scale: 10, canSendIntervalMs: 50 };
+	}
+	let txSignals = $state<SignalTxConfig[]>([]);
+	let txSignalsLoaded = $state(false);
+	async function loadTxSignals(silent = false) {
+		const data = await readJsonConfig<{ signals: SignalTxConfig[] }>(SVC_CAN_CONFIG, CHR_TX_SIGNALS);
+		if (data && Array.isArray(data.signals)) {
+			if (!silent || !txSignalsLoaded) {
+				const filled = data.signals.slice(0, MAX_TX_SIGNALS).map((s, i) => ({ ...defaultTxSignal(i), ...s }));
+				while (filled.length < MAX_TX_SIGNALS) filled.push(defaultTxSignal(filled.length));
+				txSignals = filled;
+			} else {
+				txSignals.forEach((s, i) => { s.value = data.signals[i]?.value; });   // live-обновление значений
+			}
+			txSignalsLoaded = true;
+		}
+	}
+	async function saveTxSignals() {
+		saving = true;
+		try {
+			const clean = txSignals.map(({ value, ...rest }) => rest);
+			const ok = await writeJsonConfig(SVC_CAN_CONFIG, CHR_TX_SIGNALS, { signals: clean });
+			showStatus(ok ? t('canRx.savedOk') : t('canRx.saveFailed'));
+			if (ok) await loadTxSignals(true);
+		} catch (e) {
+			showStatus(t('canRx.saveFailed') + ': ' + (e as Error).message);
+		} finally {
+			saving = false;
+		}
+	}
+
 	// --- BST_OUT: CAN-поля из общего стора boost_settings (редактируемая копия 4 полей).
 	// Запись шлёт ВЕСЬ boost_settings (display→device конвертация PID); прошивка при
 	// применении сбрасывает PID-состояние — для редкой смены адреса безвредно. ---
@@ -157,13 +192,19 @@
 			initialLoadDone = true;
 			loadOutputs();
 			loadOutChannels().catch(() => {});
+			loadTxSignals().catch(() => {});
 			if (!boostSettings.loaded) loadBoostSettings();
-			refreshTimer = setInterval(() => { loadOutputs(true); loadOutChannels(true).catch(() => {}); }, 3000);   // live duty + значения каналов
+			refreshTimer = setInterval(() => {
+				loadOutputs(true);
+				loadOutChannels(true).catch(() => {});
+				loadTxSignals(true).catch(() => {});
+			}, 3000);   // live duty + значения каналов/маршрутов
 		}
 		if (!isConnected) {
 			initialLoadDone = false;
 			loaded = false;
 			outChannelsLoaded = false;
+			txSignalsLoaded = false;
 			if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 		}
 		return () => {
@@ -335,12 +376,12 @@
 				</div>
 			</section>
 
-			<!-- OUT1..4 -->
+			<!-- TBL1..4 (выход перемноженных таблиц; wire-каналы CO1/OUT2..4) -->
 			{#each outChannels as ch, i}
 				<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2 {outChannelsLoaded ? '' : 'opacity-50 pointer-events-none'}">
 					<div class="flex items-center justify-between">
 						<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
-							OUT{i + 1}
+							TBL{i + 1}
 							{#if ch.enabled}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
 						</span>
 						{#if ch.value !== undefined}
@@ -385,6 +426,75 @@
 				<button onclick={saveOutChannels} disabled={saving || !outChannelsLoaded}
 					class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
 					{saving ? t('common.saving') : t('outputs.saveChannels')}
+				</button>
+			{/if}
+
+			<!-- ===== Секция 3: трансляция параметров (локальные входы / сигналы → CAN) ===== -->
+			<div class="text-[10px] font-bold text-[var(--color-dash-text)] uppercase tracking-wider pt-3 inline-flex items-center gap-1">{t('outputs.txSection')}<HelpTip key="help.outputs.txSection" /></div>
+			<p class="text-[10px] text-[var(--color-dash-text-dim)]">{t('outputs.txHint')}</p>
+
+			{#each txSignals as tx, i}
+				<section class="rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50 p-3 space-y-2 {txSignalsLoaded ? '' : 'opacity-50 pointer-events-none'}">
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-bold text-[var(--color-dash-text)] inline-flex items-center gap-1.5">
+							{t('outputs.txRoute')} {i + 1}
+							{#if tx.en}<span class="w-2 h-2 rounded-full bg-[var(--color-dash-success)]"></span>{/if}
+						</span>
+						{#if tx.value !== undefined}
+							<span class="text-xs font-mono text-[var(--color-dash-accent)] tabular-nums">{tx.value.toFixed(2)}</span>
+						{/if}
+					</div>
+					<div class="flex items-end gap-3 flex-wrap">
+						<label class="flex items-center gap-1.5 cursor-pointer pb-1">
+							<input type="checkbox" bind:checked={tx.en} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)]">{t('outputs.sendToCan')}</span>
+						</label>
+						<label class="space-y-1">
+							<span class="{labelClass} inline-flex items-center gap-0.5">{t('outputs.source')}<HelpTip key="help.outputs.txSource" /></span>
+							<select bind:value={tx.src} class="{inputClass} block w-36">
+								<option value="">—</option>
+								{#each srcOptions as p}
+									<option value={p.firmwareName}>{srcLabel(p.firmwareName)}</option>
+								{/each}
+							</select>
+						</label>
+					</div>
+					<div class="flex items-center gap-3 flex-wrap {tx.en ? '' : 'opacity-40 pointer-events-none'}">
+						<div class="flex items-center gap-1.5">
+							<span class={labelClass}>{t('canTx.canId')}</span>
+							<button onclick={() => { if (tx.canId > 0) tx.canId--; }}
+								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">&minus;</button>
+							<span class="text-xs text-[var(--color-dash-text-dim)]">0x</span>
+							<input type="text" value={tx.canId.toString(16).toUpperCase()} maxlength="8"
+								onchange={(e) => { const v = parseInt(e.currentTarget.value, 16); if (!isNaN(v)) tx.canId = v; }}
+								class="{inputClass} w-20 uppercase" />
+							<button onclick={() => { if (tx.canId < 0x1FFFFFFF) tx.canId++; }}
+								class="w-5 h-5 flex items-center justify-center text-xs rounded bg-[var(--color-dash-bg)] border border-[var(--color-dash-border)] text-[var(--color-dash-text-dim)] hover:text-[var(--color-dash-accent)] hover:border-[var(--color-dash-accent)] transition-colors">+</button>
+							<span class="text-[10px] text-[var(--color-dash-text-dim)] font-mono">= {tx.canId} dec</span>
+						</div>
+						<label class="flex items-center gap-1.5">
+							<span class={labelClass}>{t('canTx.canByteOffset')}</span>
+							<input type="number" min="0" max="6" bind:value={tx.canByteOffset} class="{inputClass} w-14 text-center" />
+						</label>
+						<label class="flex items-center gap-1.5">
+							<span class="{labelClass} inline-flex items-center gap-0.5">{t('outputs.scale')}<HelpTip key="help.outputs.scale" /></span>
+							<input type="number" step="any" bind:value={tx.scale} class="{inputClass} w-20 text-center" />
+						</label>
+						<label class="flex items-center gap-1.5 cursor-pointer">
+							<input type="checkbox" bind:checked={tx.canBigEndian} class="accent-[var(--color-dash-accent)]" />
+							<span class="text-xs text-[var(--color-dash-text)]">{t('canTx.canBigEndian')}</span>
+						</label>
+						<label class="flex items-center gap-1.5">
+							<span class={labelClass}>{t('canTx.canInterval')}</span>
+							<input type="number" min="10" max="1000" step="10" bind:value={tx.canSendIntervalMs} class="{inputClass} w-20 text-center" />
+						</label>
+					</div>
+				</section>
+			{/each}
+			{#if txSignals.length > 0}
+				<button onclick={saveTxSignals} disabled={saving || !txSignalsLoaded}
+					class="px-2 py-1 text-[10px] rounded bg-[var(--color-dash-success)]/15 text-[var(--color-dash-success)] hover:bg-[var(--color-dash-success)]/25 transition-colors disabled:opacity-40">
+					{saving ? t('common.saving') : t('outputs.saveTxSignals')}
 				</button>
 			{/if}
 		{/if}
