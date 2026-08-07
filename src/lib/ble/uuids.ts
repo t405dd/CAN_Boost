@@ -27,12 +27,19 @@ export const CHR_OUT_CHANNELS = '4d533337-b5a3-f393-e0a9-e50e24dcca9e';   // с�
 export const CHR_SIGNAL_ROLES = '4d533338-b5a3-f393-e0a9-e50e24dcca9e';   // сводка ролей (источники/приоритет/активный)
 export const CHR_EWG = '4d533339-b5a3-f393-e0a9-e50e24dcca9e';           // электронный вестгейт (сервопривод BTS7960)
 export const CHR_TX_SIGNALS = '4d53333a-b5a3-f393-e0a9-e50e24dcca9e';    // CAN-трансляция параметров (локальные входы → шина)
+export const CHR_IGN_CORR = '4d53333b-b5a3-f393-e0a9-e50e24dcca9e';    // карта коррекции УОЗ: настройки + live
+export const CHR_IGN_TABLES = '4d53333c-b5a3-f393-e0a9-e50e24dcca9e';    // карта коррекции УОЗ: таблицы (формат can_out_tables)
 
 // System Service characteristics
 export const CHR_DEVICE_INFO = '4d533371-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_COMMAND = '4d533372-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CURRENT_TIME = '4d533373-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_CAN_BUS_SCAN = '4d533374-b5a3-f393-e0a9-e50e24dcca9e';  // read: JSON живых CAN ID
+// OTA: два раздельных канала. CTRL — текстовые команды (write) и статус (notify);
+// DATA — только сырые чанки образа (writeWithoutResponse). Разделение убирает с горячего
+// пути любой разбор «команда это или байты прошивки».
+export const CHR_OTA_CTRL = '4d533375-b5a3-f393-e0a9-e50e24dcca9e';
+export const CHR_OTA_DATA = '4d533376-b5a3-f393-e0a9-e50e24dcca9e';
 
 // Boost Controller Service characteristics
 export const CHR_BOOST_SETTINGS = '4d533381-b5a3-f393-e0a9-e50e24dcca9e';

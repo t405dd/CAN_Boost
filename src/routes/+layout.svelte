@@ -65,6 +65,7 @@
 		{ href: '/local-inputs', key: 'nav.localInputs' as const, icon: 'I', canOnly: false },
 		{ href: '/outputs', key: 'nav.outputs' as const, icon: 'O', canOnly: false },
 		{ href: '/ewg', key: 'nav.ewg' as const, icon: 'E', canOnly: false },
+		{ href: '/ign-corr', key: 'nav.ignCorr' as const, icon: 'A', canOnly: false },
 		{ href: '/boost', key: 'nav.boost' as const, icon: 'B', canOnly: false },
 		{ href: '/logging', key: 'nav.logging' as const, icon: 'L', canOnly: false },
 		{ href: '/system', key: 'nav.system' as const, icon: 'G', canOnly: false }

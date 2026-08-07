@@ -71,6 +71,10 @@ export const PARAM_EWG_DUTY = 70;
 export const PARAM_EWG_CURRENT = 71;
 export const PARAM_EWG_STATE = 72;
 export const PARAM_EWG_AUTOTUNE = 73;
+// IgnCorr (карта коррекции УОЗ) — enum 74..76. Значение + результаты обеих таблиц.
+export const PARAM_IGN_CORR = 74;
+export const PARAM_IGN_CORR_BASE = 75;
+export const PARAM_IGN_CORR_MUL = 76;
 
 export const PARAM_NAMES: Record<number, string> = {
 	0:  'NONE',
@@ -113,6 +117,9 @@ PARAM_NAMES[PARAM_EWG_DUTY] = 'EWG_DTY';
 PARAM_NAMES[PARAM_EWG_CURRENT] = 'EWG_AMP';
 PARAM_NAMES[PARAM_EWG_STATE] = 'EWG_ST';
 PARAM_NAMES[PARAM_EWG_AUTOTUNE] = 'EWG_AT';
+PARAM_NAMES[PARAM_IGN_CORR] = 'IGN_CORR';
+PARAM_NAMES[PARAM_IGN_CORR_BASE] = 'IGN_BASE';
+PARAM_NAMES[PARAM_IGN_CORR_MUL] = 'IGN_MUL';
 
 /**
  * Build a cache-slot-index → user label map from CAN receive config.

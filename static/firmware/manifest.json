@@ -1,14 +1,10 @@
 {
-  "name": "MS3 CAN Dash",
-  "version": "1.0.0",
-  "builds": [
-    {
-      "chipFamily": "ESP32-S3",
-      "parts": [
-        { "path": "bootloader.bin", "offset": 0 },
-        { "path": "partitions.bin", "offset": 32768 },
-        { "path": "firmware.bin", "offset": 65536 }
-      ]
-    }
-  ]
+  "version": "1.1.0",
+  "built": "2026-08-06 21:42 UTC",
+  "size": 976912,
+  "sha256": "25228ee4437bcfd7f04040f91d5fe0e12c5e1070f9ecddc3d0c00431af76c0eb",
+  "bin": "boostpilot.bin",
+  "deflate": "boostpilot.bin.z",
+  "deflateSize": 563661,
+  "notes": "OTA-обновление по BLE"
 }

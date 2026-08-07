@@ -26,9 +26,16 @@ const CACHE = `can-boost-${version}`;
 // Оболочка SPA: корень приложения с учётом base-path (на GitHub Pages — /<repo>/).
 const SHELL = `${base}/`;
 
+// Артефакты прошивки (firmware/*.bin, *.z, manifest.json) в precache НЕ идут:
+//   • это ~1.5 МБ на каждую установку/обновление приложения, причём нужные далеко не всем;
+//   • manifest.json обязан быть свежим — из cache-first он бы врал о доступной версии.
+// Они обслуживаются общим network-first правилом ниже: онлайн всегда актуальные, а один раз
+// скачанный образ остаётся в кэше, так что повторная прошивка возможна и без интернета.
+const isFirmwareAsset = (p: string) => p.startsWith(`${base}/firmware/`);
+
 // Всё, что precache при установке. Дедуп через Set: prerendered уже содержит оболочку (${base}/),
 // а Cache.addAll падает с InvalidStateError на дублирующихся запросах → установка SW провалилась бы.
-const PRECACHE = [...new Set([...build, ...files, ...prerendered, SHELL])];
+const PRECACHE = [...new Set([...build, ...files.filter((f) => !isFirmwareAsset(f)), ...prerendered, SHELL])];
 
 sw.addEventListener('install', (event) => {
 	// НЕ вызываем skipWaiting — даём новому воркеру встать в waiting. Активирует его явная

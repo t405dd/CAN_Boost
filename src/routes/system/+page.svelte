@@ -9,8 +9,13 @@
 	import { t } from '$lib/i18n/index.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
+	import FirmwareUpdate from '$lib/components/FirmwareUpdate.svelte';
 
 	let isConnected = $derived(bleState.status === 'connected');
+
+	// Идёт OTA. Пока идёт — НЕ опрашиваем device-info: чанки образа пишутся напрямую, минуя
+	// общую очередь GATT (так быстрее), поэтому любое параллельное чтение рвёт передачу.
+	let otaBusy = $state(false);
 
 	// --- Device Info ---
 	let deviceInfo = $state<DeviceInfo | null>(null);
@@ -47,7 +52,7 @@
 	}
 
 	$effect(() => {
-		if (isConnected) {
+		if (isConnected && !otaBusy) {
 			loadDeviceInfo();
 			refreshTimer = setInterval(loadDeviceInfo, 5000);
 		}
@@ -217,6 +222,9 @@
 				<div class="text-center py-3 text-[var(--color-dash-text-dim)] text-xs">{t('system.noDeviceInfo')}</div>
 			{/if}
 		</div>
+
+		<!-- Обновление прошивки (OTA по BLE) -->
+		<FirmwareUpdate info={deviceInfo} onBusy={(b) => (otaBusy = b)} />
 
 		<!-- BLE PIN -->
 		<div class="p-3 rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">

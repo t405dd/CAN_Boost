@@ -45,6 +45,10 @@ const SYSTEM_PARAMS: [string, string, number][] = [
 	['EWG_AMP', 'ewg_current', 71],
 	['EWG_ST', 'ewg_state', 72],
 	['EWG_AT', 'ewg_autotune', 73],
+	// IgnCorr (карта коррекции УОЗ) — enum 74..76.
+	['IGN_CORR', 'ign_corr', 74],
+	['IGN_BASE', 'ign_corr_base', 75],
+	['IGN_MUL', 'ign_corr_mul', 76],
 ];
 
 // --- Cache slots (enum 15-54) ---

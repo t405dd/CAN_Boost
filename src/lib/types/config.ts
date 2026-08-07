@@ -239,6 +239,12 @@ export interface DeviceInfo {
 	canData?: boolean;    // CAN-данные реально приходят (не таймаут)
 	boostEnabled?: boolean; // буст-контроллер включён
 	calibrating?: boolean;  // активен режим автокалибровки (g_boostCalibrationActive)
+	built?: string;         // дата/время компиляции прошивки (__DATE__ __TIME__)
+	// OTA: есть ли второй app-раздел. false = устройство залито старой однораздельной
+	// таблицей, обновление по воздуху физически невозможно до однократной прошивки по USB.
+	otaSupported?: boolean;
+	otaMaxSize?: number;    // размер целевого раздела, байт (предел размера образа)
+	partition?: string;     // метка активного раздела (app0/app1) — видно, куда шьёмся
 }
 
 // --- Локальные входы (ADC/импульсные) — wire-формат local_inputs.cpp ---
@@ -338,6 +344,43 @@ export interface SignalTxConfig {
 	scale: number;             // множитель value → uint16
 	canSendIntervalMs: number;
 	value?: number;            // live: сырое значение источника (read добавляет прошивка)
+}
+
+// --- IgnCorr: карта коррекции УОЗ (ign_corr) ---
+// Знак — как у приёмника (MS3 datax1.SpkAdj): ПЛЮС = опережение, МИНУС = откат.
+// Таблицы карты живут в отдельной характеристике (ign_tables) и используют тот же
+// wire-формат, что can_out_tables → общий адаптер firmwareToCanOutTable.
+//   mode 1 (MS3 SpkAdj, дефолт) — штатная команда MegaSquirt: int16 (град×10) пишется
+//     в datax1.SpkAdj кадром MSG_CMD с расширенным ID. canId/canByteOffset/canBigEndian/
+//     scale/zeroOffset НЕ участвуют — адресация из ms3To/ms3From/ms3Table/ms3Offset.
+//   mode 0 (generic) — произвольный кадр: raw = round(град × scale + zeroOffset),
+//     кодировка по canSigned (int16 / uint16). Для MS3 1.5.2+ это штатный путь: в
+//     «CAN Receiving» есть приёмник SpkAdj, слот настраивается типом B2S.
+export const IGN_CORR_MODE_GENERIC = 0;
+export const IGN_CORR_MODE_MS3_SPKADJ = 1;
+
+export interface IgnCorrSettings {
+	en: boolean;               // мастер-выключатель карты (выкл → поправка 0 + догашивание нулями)
+	canEn: boolean;            // слать значение в CAN
+	mode: number;              // IGN_CORR_MODE_*
+	canId: number;             // generic
+	canByteOffset: number;     // generic: 0..6
+	canBigEndian: boolean;     // generic
+	canSigned: boolean;        // generic: true = int16 (знаковое, штатно для MS3 1.5.2+), false = uint16
+	canSendIntervalMs: number;
+	scale: number;             // generic: градусы → raw
+	zeroOffset: number;        // generic: смещение нуля в raw (uint16 без знака)
+	maxDeg: number;            // верхняя граница поправки (> 0 = разрешить опережение)
+	minDeg: number;            // нижняя граница поправки (< 0 = разрешить откат)
+	ms3To: number;             // CAN ID ЭБУ (настройка mycan_id в MS3, дефолт 0)
+	ms3From: number;           // наш ID на шине MS (1..14)
+	ms3Table: number;          // таблица (7 = datax1)
+	ms3Offset: number;         // смещение SpkAdj в таблице (632)
+	// live-поля (read добавляет прошивка) — единый источник правды для UI
+	value?: number;            // итоговая поправка, град (+ опережение / − откат)
+	base?: number;             // результат базовой таблицы, град
+	mul?: number;              // результат таблицы-множителя, %
+	ms3Id?: number;            // готовый 29-битный ID команды (для сверки снифером)
 }
 
 // --- Сводка ролей сигналов (signal_roles) ---
