@@ -589,6 +589,8 @@ export default {
 	'pwa.update': 'Обновить',
 	'pwa.updateAvailable': 'Доступно обновление',
 	'pwa.upToDate': 'Установлена последняя версия',
+	'pwa.movedNotice': 'Приложение переехало на megasquirt.online/boostpilot — обновления выходят там',
+	'pwa.movedAction': 'Открыть новый адрес',
 	'pwa.updateUnsupported': 'Обновление недоступно',
 
 	// Страница прошивки (Web Serial)

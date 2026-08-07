@@ -590,6 +590,8 @@ export default {
 	'pwa.updateAvailable': 'Update available',
 	'pwa.upToDate': 'You have the latest version',
 	'pwa.updateUnsupported': 'Update unavailable',
+	'pwa.movedNotice': 'The app has moved to megasquirt.online/boostpilot — updates are published there',
+	'pwa.movedAction': 'Open new address',
 
 	// Flash page (Web Serial)
 	'nav.flash': 'Flash (USB)',

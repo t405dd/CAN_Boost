@@ -16,7 +16,7 @@
 	import BoostHistoryChart from '$lib/components/BoostHistoryChart.svelte';
 	import { histState, startHistory, stopHistory } from '$lib/stores/boost-history.svelte';
 	import { base } from '$app/paths';
-	import { version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
+	import { browser, version } from '$app/environment';   // идентификатор загруженной сборки (см. svelte.config.js)
 	import { initDebugLog } from '$lib/stores/debug-log.svelte';
 
 	initDebugLog();   // перехват console.* в буфер (виден на стр. /logging) — для диагностики BLE на телефоне
@@ -127,6 +127,11 @@
 		return t(keys[fwUpdate.phase]);
 	}
 
+	// GitHub Pages заморожен: приложение переехало на megasquirt.online/boostpilot, обновления
+	// выходят только там. Один код обслуживает оба origin — баннер видит только старый хост.
+	const NEW_HOME = 'https://megasquirt.online/boostpilot/';
+	const onFrozenHost = browser && location.hostname === 't405dd.github.io';
+
 	// Ручная проверка обновления (кнопка в меню). 'ready' → применяем сразу; 'fresh' → подтверждаем.
 	let updateMsg = $state('');
 	async function doCheckUpdate() {
@@ -193,6 +198,16 @@
 			</button>
 		</div>
 	</header>
+
+	<!-- Переезд: этот origin (GitHub Pages) заморожен, новые версии — на megasquirt.online -->
+	{#if onFrozenHost}
+		<a href={NEW_HOME}
+			class="shrink-0 w-full px-3 py-1.5 bg-[var(--color-dash-accent)]/15 border-b border-[var(--color-dash-accent)]/30
+				text-[11px] text-[var(--color-dash-accent)] text-center hover:bg-[var(--color-dash-accent)]/25 transition-colors">
+			<span class="font-bold">{t('pwa.movedNotice')}</span>
+			<span class="opacity-80"> — {t('pwa.movedAction')}</span>
+		</a>
+	{/if}
 
 	<!-- Доступно обновление PWA: применяется по кнопке (страница перезагрузится на новую сборку) -->
 	{#if pwaUpdate.updateReady}
