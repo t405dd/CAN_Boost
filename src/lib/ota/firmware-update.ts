@@ -21,7 +21,7 @@
 // поэтому обрыв BLE после 100% больше не оставляет образ неактивированным (ровно тот
 // сценарий, из-за которого на CamGrinder станок оставался на старой версии).
 
-import { getCharacteristic, queueBleOperation, pauseLiveData, resumeLiveData, isConnected } from '$lib/ble/connection';
+import { getCharacteristic, queueBleOperation, pauseLiveData, resumeLiveData, isConnected, setOtaExclusive } from '$lib/ble/connection';
 import { SVC_SYSTEM, CHR_OTA_CTRL, CHR_OTA_DATA } from '$lib/ble/uuids';
 
 /** Размер чанка. MTU 512 ⇒ полезная нагрузка ≤509; 500 — с запасом и круглое. */
@@ -212,7 +212,7 @@ class CtrlChannel {
 			}
 		};
 		this.char.addEventListener('characteristicvaluechanged', handler);
-		await queueBleOperation(() => this.char.startNotifications());
+		await queueBleOperation(() => this.char.startNotifications(), true);
 		this.unsubscribe = () => {
 			this.char.removeEventListener('characteristicvaluechanged', handler);
 			this.char.stopNotifications().catch(() => {});
@@ -247,7 +247,9 @@ class CtrlChannel {
 
 	async send(cmd: string) {
 		const data = new TextEncoder().encode(cmd);
-		await queueBleOperation(() => this.char.writeValue(data));
+		// allowDuringOta: свои же команды обязаны проходить сквозь эксклюзивный гейт,
+		// которым мы отсекаем посторонние операции на время передачи.
+		await queueBleOperation(() => this.char.writeValue(data), true);
 	}
 }
 
@@ -342,9 +344,12 @@ export async function runOta(opts: StartOtaOptions): Promise<number> {
 	try {
 		await ctrl.start();
 
-		// Дождаться, пока общая очередь GATT опустеет: дальше мы пишем в DATA НАПРЯМУЮ,
-		// минуя очередь, и параллельная чужая операция сорвала бы передачу.
+		// Дождаться, пока общая очередь GATT опустеет, и ЗАКРЫТЬ её на время передачи: дальше
+		// чанки пишутся в DATA напрямую, минуя очередь, и любая чужая операция сорвала бы
+		// передачу. Обновление идёт «в фоне» (пользователь листает вкладки), поэтому надеяться,
+		// что никто не полезет читать свой конфиг, нельзя — нужен именно замок.
 		await queueBleOperation(async () => {});
+		setOtaExclusive(true);
 
 		// Быстрый путь записи. Если центральный не умеет writeWithoutResponse — работаем
 		// обычной записью: медленнее, но обновление проходит.
@@ -468,6 +473,7 @@ export async function runOta(opts: StartOtaOptions): Promise<number> {
 		}
 		throw err;
 	} finally {
+		setOtaExclusive(false);
 		ctrl.stop();
 		await resumeLiveData();
 	}

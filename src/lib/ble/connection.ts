@@ -40,8 +40,33 @@ let onPinRejectedCallback: (() => void) | null = null;
 // Concurrent reads/writes cause disconnection.
 let _bleQueueTail: Promise<unknown> = Promise.resolve();
 
-/** Queue a BLE operation to run sequentially (prevents concurrent GATT access) */
-export function queueBleOperation<T>(fn: () => Promise<T>): Promise<T> {
+// --- Эксклюзивный режим OTA ---
+// Обновление прошивки идёт «в фоне»: пользователь листает вкладки, а образ льётся дальше.
+// Значит любая страница может в этот момент попытаться прочитать свой конфиг — и сорвать
+// передачу, потому что чанки пишутся НАПРЯМУЮ, минуя эту очередь (так быстрее). Гейт стоит
+// здесь, в единственном месте, через которое проходят ВСЕ обычные чтения/записи (включая
+// chunked) — иначе пришлось бы вставлять проверку в каждую страницу и стор.
+// Отказ мгновенный, а не отложенный: у чтений свои ретраи с паузами, и «подождать до конца
+// OTA» означало бы висящие промисы на минуту. Страницы штатно переживают неудачное чтение,
+// а после прошивки устройство перезагружается и всё перечитывается заново.
+let otaExclusive = false;
+
+/** Текст ошибки, которой отклоняются посторонние GATT-операции во время OTA. */
+export const BLE_BUSY_OTA = 'ble_busy_ota';
+
+/** Включить/выключить эксклюзивный режим OTA. Зовёт только движок обновления. */
+export function setOtaExclusive(on: boolean) {
+	otaExclusive = on;
+}
+
+export function isOtaExclusive(): boolean {
+	return otaExclusive;
+}
+
+/** Queue a BLE operation to run sequentially (prevents concurrent GATT access).
+ *  `allowDuringOta` — только для самого движка OTA (его управляющий канал). */
+export function queueBleOperation<T>(fn: () => Promise<T>, allowDuringOta = false): Promise<T> {
+	if (otaExclusive && !allowDuringOta) return Promise.reject(new Error(BLE_BUSY_OTA));
 	const prev = _bleQueueTail;
 	const result = prev.then(fn, fn); // run even if previous failed
 	_bleQueueTail = result.then(() => {}, () => {}); // swallow errors for chain
