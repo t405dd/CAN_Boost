@@ -11,6 +11,7 @@ import { loadSignalLabels, resetSignalLabels } from './signal-labels.svelte';
 import { clearCalBaselines } from './boost-calibration.svelte';
 import { loadDeviceState, resetDeviceState } from './device-state.svelte';
 import { resetLocalInputs } from './local-inputs.svelte';
+import { loadLicense, resetLicense } from './license.svelte';
 
 async function loadWithRetry(fn: () => Promise<boolean>, attempts = 3): Promise<void> {
 	for (let i = 0; i < attempts; i++) {
@@ -42,6 +43,10 @@ export async function hydrateOnConnect(): Promise<void> {
 	await new Promise((r) => setTimeout(r, 600));
 	console.log('[hydrate] старт чтения конфигов с устройства');
 	await step('device_state', () => loadWithRetry(loadDeviceState));     // canEnabled → видимость CAN-вкладок
+	// Активация: баннер + остаток триала. Две попытки, а не три: на прошивке без этой
+	// характеристики (до активации как фичи) чтение честно вернёт false, и каждая лишняя
+	// попытка — это ~1.5 с ожидания в самом начале подключения.
+	await step('license', () => loadWithRetry(loadLicense, 2));
 	await step('boost_maps', ensureBoostMapsLoaded);        // мелкое прямое чтение — селектор карт во всех страницах
 	await step('boost_settings', () => loadWithRetry(loadBoostSettings)); // Enable/актуатор/сигналы/PID (/boost)
 	await step('co1_settings', () => loadWithRetry(loadCo1Config));       // CAN-настройки OUT1 (флаг enabled для CanOutBar в шапке; edit-канал на старте всегда 0)
@@ -57,5 +62,6 @@ export function resetHydration(): void {
 	resetSignalLabels();
 	resetDeviceState();
 	resetLocalInputs();
+	resetLicense();
 	clearCalBaselines();   // базлайн подсветки калибровки не переживает разрыв связи
 }

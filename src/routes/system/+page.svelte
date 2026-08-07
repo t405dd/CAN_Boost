@@ -10,12 +10,15 @@
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import ConnectPrompt from '$lib/components/ConnectPrompt.svelte';
 	import FirmwareUpdate from '$lib/components/FirmwareUpdate.svelte';
+	import Activation from '$lib/components/Activation.svelte';
+	import { fwBusy } from '$lib/stores/fw-update.svelte';
 
 	let isConnected = $derived(bleState.status === 'connected');
 
 	// Идёт OTA. Пока идёт — НЕ опрашиваем device-info: чанки образа пишутся напрямую, минуя
-	// общую очередь GATT (так быстрее), поэтому любое параллельное чтение рвёт передачу.
-	let otaBusy = $state(false);
+	// общую очередь GATT (так быстрее). Сам замок стоит в queueBleOperation (гейт отклонит
+	// чтение), но лишний отклонённый запрос раз в 5 секунд только мусорит в логе.
+	let otaBusy = $derived(fwBusy());
 
 	// --- Device Info ---
 	let deviceInfo = $state<DeviceInfo | null>(null);
@@ -155,6 +158,8 @@
 		{ color: '#ffd21a', key: 'system.ledNoData' as const },
 		{ color: '#ff2b2b', key: 'system.ledFault' as const },
 		{ color: '#ff2ea6', key: 'system.ledNoBus' as const },
+		// Моргающий красный перебивает любой другой статус — см. setStatusLedGated в прошивке.
+		{ color: '#ff2b2b', key: 'system.ledNoLicense' as const },
 	];
 
 	// --- Time Sync ---
@@ -223,8 +228,11 @@
 			{/if}
 		</div>
 
+		<!-- Активация устройства (без неё наддув отключается через минуту после старта) -->
+		<Activation />
+
 		<!-- Обновление прошивки (OTA по BLE) -->
-		<FirmwareUpdate info={deviceInfo} onBusy={(b) => (otaBusy = b)} />
+		<FirmwareUpdate info={deviceInfo} />
 
 		<!-- BLE PIN -->
 		<div class="p-3 rounded-lg bg-[var(--color-dash-card)] border border-[var(--color-dash-border)]/50">

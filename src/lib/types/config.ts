@@ -245,6 +245,18 @@ export interface DeviceInfo {
 	otaSupported?: boolean;
 	otaMaxSize?: number;    // размер целевого раздела, байт (предел размера образа)
 	partition?: string;     // метка активного раздела (app0/app1) — видно, куда шьёмся
+	licensed?: boolean;     // устройство активировано (ключ в NVS совпал с MAC)
+	trialLeft?: number;     // секунд триала осталось (0 = активировано или триал истёк)
+}
+
+// --- Активация устройства (характеристика CHR_LICENSE) ---
+export interface LicenseStatus {
+	mac: string;           // MAC чипа "AA:BB:CC:DD:EE:FF" — по нему выдаётся ключ
+	licensed: boolean;
+	trialLeft: number;     // секунд полного функционала осталось
+	boostAllowed: boolean; // управление наддувом разрешено прямо сейчас (активно или триал)
+	trialSec: number;      // длительность триала в прошивке, с
+	key?: string;          // 64-hex ключ; прошивка отдаёт только активированному устройству
 }
 
 // --- Локальные входы (ADC/импульсные) — wire-формат local_inputs.cpp ---

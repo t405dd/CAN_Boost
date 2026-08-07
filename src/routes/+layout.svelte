@@ -6,6 +6,8 @@
 	import { pwaUpdate, checkForUpdate, applyUpdate } from '$lib/stores/pwa-update.svelte';
 	import { boostMaps, setActiveBoostMap } from '$lib/stores/boost-maps.svelte';
 	import { deviceState } from '$lib/stores/device-state.svelte';
+	import { license } from '$lib/stores/license.svelte';
+	import { fwUpdate, fwBusy, fwHasUpdate, fwDeviceVersion, fwOtaSupported, checkFwManifest, startFwUpdate, dismissFwError } from '$lib/stores/fw-update.svelte';
 	import { hydrateOnConnect, resetHydration } from '$lib/stores/hydrate.svelte';
 	import { handleConnectionChange, markManualDisconnect } from '$lib/stores/client-log.svelte';
 	import { t, i18n, setLocale, availableLocales } from '$lib/i18n/index.svelte';
@@ -18,6 +20,10 @@
 	import { initDebugLog } from '$lib/stores/debug-log.svelte';
 
 	initDebugLog();   // перехват console.* в буфер (виден на стр. /logging) — для диагностики BLE на телефоне
+
+	// Манифест прошивки — обычный HTTP-запрос, от BLE не зависит: спрашиваем сразу, чтобы
+	// «доступна версия X» была видна и до подключения. Внутри guard — читаем один раз за сессию.
+	checkFwManifest();
 
 	interface Props { children: import('svelte').Snippet }
 	let { children }: Props = $props();
@@ -100,6 +106,27 @@
 		}
 	}
 
+	// --- Обновление прошивки устройства (баннер в шапке) ---
+	let deviceVersion = $derived(fwDeviceVersion());
+	// Баннер предлагаем только когда обновление реально можно провести: есть связь, железо
+	// поддерживает OTA (иначе нужен переход по USB) и мы ничего не льём прямо сейчас.
+	let showFwBanner = $derived(
+		bleState.status === 'connected' && fwHasUpdate() && fwOtaSupported() && !fwBusy()
+	);
+	// Подтверждение отдельным тапом: прошивка устройства необратима на полпути, а баннер висит
+	// на всех страницах — случайное касание не должно начинать заливку.
+	let fwConfirm = $state(false);
+
+	function fwPhaseText(): string {
+		const keys = {
+			idle: 'ota.phase.idle', preparing: 'ota.phase.preparing', downloading: 'ota.phase.downloading',
+			compressing: 'ota.phase.compressing', uploading: 'ota.phase.uploading',
+			flashing: 'ota.phase.flashing', verifying: 'ota.phase.verifying',
+			done: 'ota.phase.done', error: 'ota.phase.error'
+		} as const;
+		return t(keys[fwUpdate.phase]);
+	}
+
 	// Ручная проверка обновления (кнопка в меню). 'ready' → применяем сразу; 'fresh' → подтверждаем.
 	let updateMsg = $state('');
 	async function doCheckUpdate() {
@@ -130,9 +157,16 @@
 			</svg>
 		</button>
 
-		<div class="flex flex-col items-center leading-none">
+		<div class="flex flex-col items-center leading-none min-w-0">
 			<span class="text-sm font-bold tracking-wider text-[var(--color-dash-accent)]">BOOSTPILOT</span>
-			<span class="text-[9px] text-[var(--color-dash-text-dim)] tracking-wide mt-0.5" title={t('pwa.buildVersion')}>v{version}</span>
+			<span class="text-[9px] text-[var(--color-dash-text-dim)] tracking-wide mt-0.5 truncate">
+				{#if deviceVersion}
+					<!-- Прошивка устройства и сборка PWA рядом: обе нужны при разборе проблем, и путать
+					     их нельзя. Подсвечиваем FW, когда есть более новая — тот же сигнал, что в баннере. -->
+					<span class="{fwHasUpdate() ? 'text-[var(--color-dash-warn)] font-bold' : ''}" title={t('ota.deviceVersion')}>FW {deviceVersion}</span>
+					<span class="opacity-50"> · </span>
+				{/if}<span title={t('pwa.buildVersion')}>v{version}</span>
+			</span>
 		</div>
 
 		<div class="flex items-center gap-2">
@@ -167,6 +201,75 @@
 				text-[11px] font-bold text-[var(--color-dash-accent)] text-center hover:bg-[var(--color-dash-accent)]/25 transition-colors">
 			{t('pwa.updateAvailable')} — {t('pwa.update')}
 		</button>
+	{/if}
+
+	<!-- Обновление прошивки УСТРОЙСТВА. Живёт в шапке, а состояние — в сторе, поэтому заливка
+	     продолжается, пока пользователь листает вкладки («в фоне»). После успеха устройство
+	     перезагружается само, а мы перезагружаем страницу. -->
+	{#if fwBusy()}
+		<div class="shrink-0 border-b border-[var(--color-dash-warn)]/30 bg-[var(--color-dash-warn)]/10">
+			<div class="h-0.5 bg-[var(--color-dash-border)] overflow-hidden">
+				<div class="h-full transition-[width] duration-150 {fwUpdate.phase === 'done' ? 'bg-[var(--color-dash-success)]' : 'bg-[var(--color-dash-warn)]'}"
+					style="width: {fwUpdate.pct}%"></div>
+			</div>
+			<div class="px-3 py-1 flex items-center justify-center gap-2 text-[11px] tracking-wide">
+				{#if fwUpdate.reloading}
+					<span class="font-bold text-[var(--color-dash-success)]">{t('ota.reloadingPage')}</span>
+				{:else}
+					<span class="font-bold text-[var(--color-dash-warn)]">{t('ota.inProgress')}</span>
+					<span class="text-[var(--color-dash-text-dim)]">{fwPhaseText()}</span>
+					<span class="text-[var(--color-dash-text)] tabular-nums">
+						{fwUpdate.pct}%{#if fwUpdate.phase === 'uploading' && fwUpdate.speedKbs > 0}
+							· {fwUpdate.speedKbs.toFixed(1)} KB/s · {Math.ceil(fwUpdate.etaSec)}s{/if}
+					</span>
+				{/if}
+			</div>
+		</div>
+	{:else if fwUpdate.phase === 'error'}
+		<button onclick={dismissFwError}
+			class="shrink-0 w-full px-3 py-1.5 bg-[var(--color-dash-danger)]/15 border-b border-[var(--color-dash-danger)]/30
+				text-[11px] text-[var(--color-dash-danger)] text-center hover:bg-[var(--color-dash-danger)]/25 transition-colors">
+			<span class="font-bold">{t('ota.failed')}</span>
+			<span class="font-mono opacity-80"> {fwUpdate.error}</span>
+		</button>
+	{:else if showFwBanner}
+		{#if fwConfirm}
+			<div class="shrink-0 px-3 py-2 bg-[var(--color-dash-warn)]/15 border-b border-[var(--color-dash-warn)]/30">
+				<p class="text-[11px] text-[var(--color-dash-warn)] text-center mb-1.5">{t('ota.confirmWarn')}</p>
+				<div class="flex gap-2 max-w-xs mx-auto">
+					<button onclick={() => { fwConfirm = false; startFwUpdate(); }}
+						class="flex-1 py-1.5 rounded text-[11px] font-bold bg-[var(--color-dash-warn)] text-black hover:bg-[var(--color-dash-warn)]/80 transition-colors">
+						{t('ota.start')} {fwUpdate.manifest?.version}
+					</button>
+					<button onclick={() => fwConfirm = false}
+						class="flex-1 py-1.5 rounded text-[11px] font-bold bg-[var(--color-dash-border)]/60 text-[var(--color-dash-text-dim)] hover:bg-[var(--color-dash-border)] transition-colors">
+						{t('common.cancel')}
+					</button>
+				</div>
+			</div>
+		{:else}
+			<button onclick={() => fwConfirm = true}
+				class="shrink-0 w-full px-3 py-1.5 bg-[var(--color-dash-warn)]/15 border-b border-[var(--color-dash-warn)]/30
+					text-[11px] font-bold text-[var(--color-dash-warn)] text-center hover:bg-[var(--color-dash-warn)]/25 transition-colors">
+				{t('ota.bannerAvailable', fwUpdate.manifest?.version ?? '')} — {t('ota.start')}
+			</button>
+		{/if}
+	{/if}
+
+	<!-- Устройство не активировано. Баннер во всей шапке, а не только на /system: у контроллера
+	     нет экрана, и человек должен узнать, ПОЧЕМУ пропал наддув, на любой странице.
+	     Пока идёт триал — жёлтый с отсчётом; после — красный «наддув отключён». -->
+	{#if bleState.status === 'connected' && license.loaded && !license.licensed}
+		<a href="{base}/system"
+			class="shrink-0 w-full px-3 py-1.5 text-[11px] text-center border-b transition-colors
+				{license.boostAllowed
+					? 'bg-[var(--color-dash-warn)]/15 border-[var(--color-dash-warn)]/30 text-[var(--color-dash-warn)] hover:bg-[var(--color-dash-warn)]/25'
+					: 'bg-[var(--color-dash-danger)]/15 border-[var(--color-dash-danger)]/30 text-[var(--color-dash-danger)] hover:bg-[var(--color-dash-danger)]/25'}">
+			<span class="font-bold">
+				{license.boostAllowed ? t('lic.bannerTrial', String(license.trialLeft)) : t('lic.bannerBlocked')}
+			</span>
+			<span class="opacity-80"> — {t('lic.bannerAction')}</span>
+		</a>
 	{/if}
 
 	<!-- iOS: установка только вручную -->

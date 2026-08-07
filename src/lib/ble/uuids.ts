@@ -40,6 +40,9 @@ export const CHR_CAN_BUS_SCAN = '4d533374-b5a3-f393-e0a9-e50e24dcca9e';  // read
 // пути любой разбор «команда это или байты прошивки».
 export const CHR_OTA_CTRL = '4d533375-b5a3-f393-e0a9-e50e24dcca9e';
 export const CHR_OTA_DATA = '4d533376-b5a3-f393-e0a9-e50e24dcca9e';
+// Активация устройства: read = статус JSON (mac/licensed/trialLeft), write = 'ACTIVATE:<64hex>',
+// notify = 'OK' | 'FAIL' | 'TRIAL_END'.
+export const CHR_LICENSE = '4d533377-b5a3-f393-e0a9-e50e24dcca9e';
 
 // Boost Controller Service characteristics
 export const CHR_BOOST_SETTINGS = '4d533381-b5a3-f393-e0a9-e50e24dcca9e';
